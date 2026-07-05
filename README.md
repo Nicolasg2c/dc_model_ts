@@ -1,8 +1,11 @@
-# APLICACIÓN DE MODELOS DE MACHINE LEARNING PARA LA DETECCIÓN Y CLASIFICACIÓN DEL DETERIORO COGNITIVO MEDIANTE EL USO EVALUACIONES NEUROPSICOLÓGICAS EN ADULTOS MAYORES EN COLOMBIA 
+# APLICACIÓN DE MODELOS DE MACHINE LEARNING PARA LA DETECCIÓN Y CLASIFICACIÓN DEL DETERIORO COGNITIVO MEDIANTE EL USO EVALUACIONES NEUROPSICOLÓGICAS EN ADULTOS MAYORES EN COLOMBIA
 
-Pipeline de extracción, limpieza e integración de datos neuropsicológicos para análisis exploratorio, visualización y modelado.
+La vejez trae consigo una serie de cambios y reestructuración estructurales que incrementa la prevalencia de enfermedades neurocognitivas como el deterioro cognitivo leve (DCL) (Gauthier et al., 2006), en Colombia el acceso limitado a especialistas y las características socioculturales del país representan una dificultad en el rápido diagnóstico de esta condición. Ante este escenario, este trabajo pretende responder la pregunta ¿Cómo se desempeñan las herramientas de machine learning en la identificación temprana del deterioro cognitivo en adultos mayores en contextos colombianos? 
 
-El proyecto parte de un archivo Excel alojado en GitHub, procesa dos formatos de tabla distintos y construye un dataset final listo para gráficas y modelos.
+ El propósito general del proyecto es realizar una comparación entre modelos construidos y entrenados para la detección y clasificación del deterioro cognitivo usando datos de pruebas neuropsicológicas especializadas para cada dominio cognitivo tomadas en pacientes en Colombia. Para ello, se plantean una serie de objetivos que van desde el estudio de estas pruebas neuropsicológicas, la construcción de un pipeline de datos, la aplicación de técnicas de inteligencia artificial y aprendizaje supervisado y evaluar su desempeño mediante métricas de precisión y robustez. Este proyecto se define en el marco de una investigación aplicada de diseño observacional y no experimental, que está basada en el análisis de datos secundarios provenientes de instituciones médicas de Caldas. El proyecto sigue los lineamientos de la metodología CRISP-DM, la cual define toda la estructura de un proyecto fundamentado en la ciencia de datos.  
+
+Los resultados del proyecto incluyen tanto la fundamentación conceptual de las evaluaciones neuropsicológicas, un pipeline entre los datos en bruto de los test neuropsicológicos a un conjunto de datos con requerimientos necesarios para la incorporación de modelos de ML y la identificación de patrones complejos de deterioro cognitivo y la selección de un modelo que presente un alto rendimiento predictivo. Una de las conclusiones principales es resaltar cómo el aprendizaje automático puede constituir una estrategia ética y viable para apoyar la toma de decisiones médicas basadas en datos en un contexto colombiano.  
+
 
 ## Contenido del proyecto
 
@@ -76,7 +79,7 @@ df_tabla_0_imp, df_tabla_1_imp, df_complete = run_etl(dotenv_path=".env", verbos
 
 ## Notebooks
 
-Los notebooks en `src/notebooks/` se mantienen como referencia exploratoria del proceso y para pruebas visuales. El flujo reutilizable debe vivir en `src/etl.py`.
+Los notebooks en `src/notebooks/` se mantienen como referencia exploratoria del proceso, pruebas visuales y avances exploratorios. Sin embargo, se prevee alimentar el proyecto de acuerdo a los requerimentos y objetivos del mismo.
 
 ## Notas
 
