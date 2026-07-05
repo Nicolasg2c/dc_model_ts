@@ -34,7 +34,7 @@ La función principal es `run_etl()` y devuelve:
 ## Requisitos
 
 - Python `>= 3.14`
-- Conexión al repositorio o archivo Excel configurado en GitHub
+- Fuente de datos
 
 Dependencias principales:
 
@@ -55,7 +55,7 @@ uv sync
 
 Si no usas `uv`, instala las dependencias con tu gestor habitual a partir de `pyproject.toml`.
 
-## Uso
+## Uso del ETL
 
 Ejecutar el ETL desde Python:
 
