@@ -178,7 +178,6 @@ DOMINIOS: Dict[str, List[str]] = {
 
 # Etiquetas y paleta para visualizaciones (disponibles al importar el módulo)
 DC_LABELS: Dict[int, str] = {0: "Control", 1: "DCL", 2: "Demencia"}
-DC_PALETTE: Dict[int, str] = {0: "#2ecc71", 1: "#f39c12", 2: "#e74c3c"}
 DC_ORDER: List[int] = [0, 1, 2]
 EDUCATION_LEVEL: Dict[int, str] = {
     0: "Escolaridad Baja",
