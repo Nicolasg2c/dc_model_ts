@@ -774,6 +774,9 @@ def build_df_complete(
 
     # Columna numérica de edad (útil para gráficas)
     df_complete["age_num"] = pd.to_numeric(df_complete["age"], errors="coerce")
+    
+    #Eliminar columna age 
+    df_complete.drop(columns=["age"], inplace=True)
 
     return df_complete
 
