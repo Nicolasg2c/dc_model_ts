@@ -9,13 +9,22 @@ Los resultados del proyecto incluyen tanto la fundamentación conceptual de las 
 
 ## Contenido del proyecto
 
-- `src/etl.py`: módulo principal del ETL.
+- `src/etl.py`: script de ETL original/de respaldo.
+- `src/services/`: paquete modular de servicios de ETL:
+  - `__init__.py`: API pública del paquete.
+  - `config.py`: constantes de dominio, features y mapeos.
+  - `utils.py`: funciones utilitarias de normalización de texto.
+  - `cleaning.py`: limpieza de hojas y detección de formato.
+  - `features.py`: extracción de información de pacientes y features.
+  - `normalization.py`: normalización de variables categóricas.
+  - `imputation.py`: imputación clínica de valores nulos.
+  - `etl.py`: orquestador principal que ejecuta y coordina todos los pasos del ETL.
 - `src/notebooks/`: notebooks de exploración y desarrollo del flujo.
 - `pyproject.toml`: dependencias del proyecto y configuración básica.
 
 ## Qué hace el ETL
 
-El pipeline implementado en `src/etl.py`:
+El pipeline implementado en `src/services/etl.py` (y expuesto a través de `src/services`):
 
 - descarga el Excel desde GitHub usando credenciales en `.env`;
 - limpia las hojas vacías;
@@ -57,10 +66,10 @@ Si no usas `uv`, instala las dependencias con tu gestor habitual a partir de `py
 
 ## Uso del ETL
 
-Ejecutar el ETL desde Python:
+Ejecutar el ETL modularizado desde Python:
 
 ```python
-from src.etl import run_etl
+from src.services import run_etl
 
 df_tabla_0_imp, df_tabla_1_imp, df_complete = run_etl(verbose=True)
 ```
