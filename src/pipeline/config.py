@@ -5,7 +5,6 @@ config.py — Configuración, constantes y mapeos del dominio neuropsicológico.
 from typing import Dict, List
 
 # Constantes de dominio — columnas de identificación de cada paciente
-# ---------------------------------------------------------------------------
 
 ID_COLS: List[str] = ["dc", "age", "nivel_estudio", "sheet_name"]
 
@@ -162,7 +161,7 @@ TABLE_CONFIGS: Dict[int, Dict[str, int]] = {
     1: {"headers_col": 1, "value_col": 4, "nivel_estudio": 1},
 }
 
-# Mapas de valores de normalización
+# Mapas de valores de normalización de las tablas 0 y 1
 REEMPLAZOS_TABLA_1: Dict[str, str] = {
     "alteracion severa": "alteracion_severa",
     "altearcion severa": "alteracion_severa",

@@ -17,10 +17,8 @@ from .config import ID_COLS, REEMPLAZOS_TABLA_0, REEMPLAZOS_TABLA_1
 from .utils import limpiar_texto
 
 
-# ---------------------------------------------------------------------------
-# 5. Normalización — estandarización de valores categóricos
-# ---------------------------------------------------------------------------
 
+# Normalización — estandarización de valores categóricos
 
 def _normalizar_df(df: pd.DataFrame, reemplazos: Dict[str, str]) -> pd.DataFrame:
     """
@@ -46,7 +44,7 @@ def _normalizar_df(df: pd.DataFrame, reemplazos: Dict[str, str]) -> pd.DataFrame
 
     return df
 
-
+# Normalización — funciones públicas para cada formato de tabla
 def normalize_tabla_0(df: pd.DataFrame) -> pd.DataFrame:
     """
     Normaliza los valores categóricos de la Tabla 0 (escolaridad baja).

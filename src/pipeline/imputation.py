@@ -16,11 +16,8 @@ import numpy as np
 import pandas as pd
 
 
-# ---------------------------------------------------------------------------
-# 6. Imputación clínica
-# ---------------------------------------------------------------------------
 
-
+#Imputación clínica
 def null_data_info(df: pd.DataFrame, id_cols: List[str]) -> pd.DataFrame:
     """
     Resumen de valores nulos por columna (excluye columnas de ID).
@@ -45,7 +42,7 @@ def null_data_info(df: pd.DataFrame, id_cols: List[str]) -> pd.DataFrame:
         }
     ).sort_values("%_nulos", ascending=False)
 
-
+# Imputación clínica de valores nulos
 def imputacion_null(
     df: pd.DataFrame,
     id_cols: List[str],

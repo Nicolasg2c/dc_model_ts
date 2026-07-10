@@ -1,7 +1,7 @@
 """
 utils.py — Funciones utilitarias de normalización de texto.
 
-Contiene helpers de uso general para limpiar y estandarizar cadenas de
+Contiene funciones utilitarias de uso general para limpiar y estandarizar cadenas de
 caracteres, utilizados transversalmente por los demás módulos del pipeline.
 """
 
@@ -13,10 +13,8 @@ from typing import Optional
 import pandas as pd
 
 
-# ---------------------------------------------------------------------------
-# Helpers de normalización de texto
-# ---------------------------------------------------------------------------
 
+# Helpers de normalización de texto
 
 def _limpiar_tildes(texto: str) -> str:
     """Elimina las tildes de un string mediante normalización Unicode NFD."""

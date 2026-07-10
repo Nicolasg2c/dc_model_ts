@@ -15,9 +15,7 @@ import pandas as pd
 from .utils import clean_value
 
 
-# ---------------------------------------------------------------------------
-# 2. Limpieza — estandarización de hojas
-# ---------------------------------------------------------------------------
+# Limpieza — estandarización de hojas
 
 
 def clean_sheets(
@@ -43,11 +41,8 @@ def clean_sheets(
     return cleaned
 
 
-# ---------------------------------------------------------------------------
-# 3. Detección — formato de tabla por hoja
-# ---------------------------------------------------------------------------
 
-
+#Detección — formato de tabla por hoja
 def detect_table_format(
     sheet: pd.DataFrame,
     keywords: List[str] = ["espacio"],

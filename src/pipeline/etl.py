@@ -3,12 +3,12 @@ etl.py — Pipeline ETL para el procesamiento de datos neuropsicológicos.
 
 Pasos principales
 -----------------
-1. Extracción   : Descarga el archivo Excel desde GitHub.
-2. Limpieza     : Elimina filas vacías y detecta el formato de cada hoja.
-3. Extracción   : Obtiene los features neuropsicológicos de cada hoja.
+1. Extracción: Descarga el archivo Excel desde GitHub.
+2. Limpieza: Elimina filas vacías y detecta el formato de cada hoja.
+3. Extracción: Obtiene los features neuropsicológicos de cada hoja.
 4. Normalización: Estandariza los valores categóricos (interpretación clínica).
-5. Imputación   : Imputa nulos con mediana/moda por grupo clínico.
-6. Integración  : Construye `df_complete` con dominios cognitivos agregados.
+5. Imputación: Imputa nulos con mediana/moda por grupo clínico.
+6. Integración: Construye `df_complete` con dominios cognitivos agregados.
 
 Retorno de `run_etl()`
 ----------------------
@@ -41,11 +41,8 @@ from .normalization import normalize_tabla_0, normalize_tabla_1
 warnings.filterwarnings("ignore")
 
 
-# ---------------------------------------------------------------------------
-# 1. Extracción — descarga del archivo Excel
-# ---------------------------------------------------------------------------
 
-
+#Extracción de datos desde GitHub
 def load_excel_from_github(dotenv_path: str = ".env") -> Dict[str, pd.DataFrame]:
     """
     Descarga el archivo Excel desde GitHub usando las credenciales del .env.
@@ -75,9 +72,7 @@ def load_excel_from_github(dotenv_path: str = ".env") -> Dict[str, pd.DataFrame]
     )
 
 
-# ---------------------------------------------------------------------------
-# 7. Construcción de df_complete con dominios cognitivos
-# ---------------------------------------------------------------------------
+#Construcción de df_complete con dominios cognitivos
 
 
 def _to_ordinal(series: pd.Series) -> pd.Series:
@@ -167,11 +162,8 @@ def build_df_complete(
     return df_complete
 
 
-# ---------------------------------------------------------------------------
-# Función principal
-# ---------------------------------------------------------------------------
 
-
+# Función principal etl
 def run_etl(
     dotenv_path: str = ".env",
     verbose: bool = True,
@@ -201,23 +193,18 @@ def run_etl(
     Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]
         (df_tabla_0_imp, df_tabla_1_imp, df_complete)
     """
-    # ------------------------------------------------------------------
     # 1. Extracción
-    # ------------------------------------------------------------------
     if verbose:
         print("Descargando datos desde GitHub...")
     xlsx_data = load_excel_from_github(dotenv_path)
 
-    # ------------------------------------------------------------------
     # 2. Limpieza de hojas
-    # ------------------------------------------------------------------
     cleaned_sheets = clean_sheets(xlsx_data)
     if verbose:
         print(f"Hojas cargadas: {len(cleaned_sheets)}")
 
-    # ------------------------------------------------------------------
-    # 3. Detección de formato
-    # ------------------------------------------------------------------
+
+    # 3. Detección de formato de cada tabla
     type_of_table: Dict[str, int | str] = {
         name: detect_table_format(sheet)
         for name, sheet in cleaned_sheets.items()
@@ -232,9 +219,7 @@ def run_etl(
             f"No determinadas            : {n_indet}"
         )
 
-    # ------------------------------------------------------------------
     # 4. Extracción de features por tabla
-    # ------------------------------------------------------------------
     cleaned_tabla_0 = {
         name: sheet
         for name, sheet in cleaned_sheets.items()
@@ -255,15 +240,11 @@ def run_etl(
             f"df_tabla_1 crudo : {df_tabla_1.shape}"
         )
 
-    # ------------------------------------------------------------------
     # 5. Normalización de valores categóricos
-    # ------------------------------------------------------------------
     df_tabla_0 = normalize_tabla_0(df_tabla_0)
     df_tabla_1 = normalize_tabla_1(df_tabla_1)
 
-    # ------------------------------------------------------------------
     # 6. Imputación clínica
-    # ------------------------------------------------------------------
     if verbose:
         print("\n🔧  Imputando nulos...")
         print("--- Perfil nulos Tabla 0 ---")
@@ -282,9 +263,7 @@ def run_etl(
             f"df_tabla_1_imp : {df_tabla_1_imp.shape}"
         )
 
-    # ------------------------------------------------------------------
-    # 7. Construcción de df_complete
-    # ------------------------------------------------------------------
+    # 7. Construcción del dataframe conjunto
     df_complete = build_df_complete(df_tabla_0_imp, df_tabla_1_imp)
 
     if verbose:
@@ -304,10 +283,7 @@ def run_etl(
     return df_tabla_0_imp, df_tabla_1_imp, df_complete
 
 
-# ---------------------------------------------------------------------------
-# Punto de entrada
-# ---------------------------------------------------------------------------
-
+#función principal para ejecutar el pipeline ETL
 if __name__ == "__main__":
     df_tabla_0_imp, df_tabla_1_imp, df_complete = run_etl(verbose=True)
     print("\nPrimeras filas de df_complete:")

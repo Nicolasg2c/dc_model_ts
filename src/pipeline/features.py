@@ -17,10 +17,8 @@ from .config import TABLE_CONFIGS
 from .utils import clean_value
 
 
-# ---------------------------------------------------------------------------
-# 4. Extracción — información del paciente y features por hoja
-# ---------------------------------------------------------------------------
 
+#Extracción — información del paciente y features por hoja
 
 def extract_patient_info(sheet_name: str) -> Tuple[int | str, str]:
     """
@@ -52,6 +50,7 @@ def extract_patient_info(sheet_name: str) -> Tuple[int | str, str]:
     return dc, age
 
 
+# Extracción — features neuropsicológicos por hoja
 def extract_features_from_table(
     sheet: pd.DataFrame,
     headers_col: int,
@@ -98,7 +97,7 @@ def extract_features_from_table(
         for feature in features
     }
 
-
+# Búsqueda — valores de cada dominio cognitivo por hoja
 def search_values(
     data: Dict[str, pd.DataFrame],
     features: List[str],
