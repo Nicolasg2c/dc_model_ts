@@ -267,7 +267,7 @@ def run_etl(
     df_complete = build_df_complete(df_tabla_0_imp, df_tabla_1_imp)
 
     if verbose:
-        print(f"\n🏁  df_complete listo: {df_complete.shape}")
+        print(f"\ndf_complete listo: {df_complete.shape}")
         print(f"    Nulos restantes:\n{df_complete.isnull().sum()}")
         n_ctrl = (df_complete["dc"] == 0).sum()
         n_dcl = (df_complete["dc"] == 1).sum()
