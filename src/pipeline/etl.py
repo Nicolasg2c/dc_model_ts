@@ -246,7 +246,7 @@ def run_etl(
 
     # 6. Imputación clínica
     if verbose:
-        print("\n🔧  Imputando nulos...")
+        print("\n Imputando nulos...")
         print("--- Perfil nulos Tabla 0 ---")
         perfil_t0 = null_data_info(df_tabla_0, ID_COLS)
         print(perfil_t0[perfil_t0["nulos"] > 0])
