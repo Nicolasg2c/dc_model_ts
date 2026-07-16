@@ -205,10 +205,10 @@ def build_df_complete(
     df_complete["age_num"] = pd.to_numeric(df_complete["age"], errors="coerce")
 
     # Eliminar columna age (ya queda en age_num)
-    df_complete.drop(columns=["age"], inplace=True)
+    df_complete.drop(columns=["age", 'sheet_name'], inplace=True)
 
     # Columnas demográficas base
-    cols_demo = ["sheet_name", "nivel_estudio", "dc", "age_num"]
+    cols_demo = ["nivel_estudio", "dc", "age_num"]
 
     # Para cada dominio: intercalar n_{dominio} + score
     # El orden resulta: sheet_name, nivel_estudio, dc, age_num,
@@ -366,7 +366,3 @@ def run_etl(
 #función principal para ejecutar el pipeline ETL
 if __name__ == "__main__":
     df_tabla_0_imp, df_tabla_1_imp, df_mean, df_median = run_etl(verbose=True)
-    print("\nPrimeras filas de df_mean:")
-    print(df_mean.head())
-    print("\nPrimeras filas de df_median:")
-    print(df_median.head())
