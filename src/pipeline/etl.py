@@ -3,18 +3,32 @@ etl.py — Pipeline ETL para el procesamiento de datos neuropsicológicos.
 
 Pasos principales
 -----------------
-1. Extracción: Descarga el archivo Excel desde GitHub.
-2. Limpieza: Elimina filas vacías y detecta el formato de cada hoja.
-3. Extracción: Obtiene los features neuropsicológicos de cada hoja.
+1. Extracción  : Descarga el archivo Excel desde GitHub.
+2. Limpieza    : Elimina filas vacías y detecta el formato de cada hoja.
+3. Extracción  : Obtiene los features neuropsicológicos de cada hoja.
 4. Normalización: Estandariza los valores categóricos (interpretación clínica).
-5. Imputación: Imputa nulos con mediana/moda por grupo clínico.
-6. Integración: Construye `df_complete` con dominios cognitivos agregados.
+5. Imputación  : Imputa nulos con mediana/moda por grupo clínico.
+6. Integración : Construye `df_complete` con dominios cognitivos agregados.
 
 Retorno de `run_etl()`
 ----------------------
-Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    (df_tabla_0_imp, df_tabla_1_imp, df_complete)
+Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    (df_tabla_0_imp, df_tabla_1_imp, df_mean, df_median)
+
+Estructura de `df_mean` / `df_median`
+--------------------------------------
+Ambas comparten las mismas columnas de identificación:
+- sheet_name, nivel_estudio, dc, age_num
+
+Por cada dominio se incluye también:
+- ``n_{dominio}`` : número de pruebas del dominio con valor válido por persona.
+
+`df_mean`   contiene una columna ``{dominio}`` (media ordinal) por dominio.
+`df_median` contiene una columna ``{dominio}`` (mediana ordinal) por dominio.
+Dominios: orientacion, atencion, lenguaje, memoria_verbal,
+          memoria_visual, gnosias, praxis, ejecutivas.
 """
+
 
 from __future__ import annotations
 
@@ -80,12 +94,14 @@ def _to_ordinal(series: pd.Series) -> pd.Series:
     return series.map(ORDINAL_MAP)
 
 
-def _domain_score(df: pd.DataFrame, cols: List[str]) -> pd.Series:
+def _domain_score(
+    df: pd.DataFrame, cols: List[str]
+) -> Tuple[pd.Series, pd.Series]:
     """
-    Calcula el puntaje promedio ordinal de un dominio cognitivo.
+    Calcula el puntaje medio y mediano ordinal de un dominio cognitivo.
 
     Solo utiliza las columnas presentes en `df`. Si ninguna columna
-    del dominio está presente, retorna una Serie de None.
+    del dominio está presente, retorna dos Series de None.
 
     Parámetros
     ----------
@@ -95,21 +111,32 @@ def _domain_score(df: pd.DataFrame, cols: List[str]) -> pd.Series:
 
     Retorna
     -------
-    pd.Series
+    Tuple[pd.Series, pd.Series]
+        (media_por_fila, mediana_por_fila)
     """
     cols_present = [c for c in cols if c in df.columns]
     if not cols_present:
-        return pd.Series([None] * len(df), index=df.index)
+        nan_series = pd.Series([None] * len(df), index=df.index)
+        return nan_series, nan_series
     scores = df[cols_present].apply(_to_ordinal)
-    return scores.mean(axis=1)
+    return scores.mean(axis=1), scores.median(axis=1)
 
 
 def build_df_complete(
     df_tabla_0_imp: pd.DataFrame,
     df_tabla_1_imp: pd.DataFrame,
-) -> pd.DataFrame:
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Construye el DataFrame integrado con los dominios cognitivos agregados.
+    Construye dos DataFrames integrados con los dominios cognitivos agregados.
+
+    Cada dominio cognitivo se agrega de dos formas separadas:
+    - ``df_mean``   : variables demográficas + ``n_{dominio}`` +
+      una columna ``{dominio}`` (media ordinal) por dominio.
+    - ``df_median`` : variables demográficas + ``n_{dominio}`` +
+      una columna ``{dominio}`` (mediana ordinal) por dominio.
+
+    La columna ``n_{dominio}`` (ej. ``n_atencion``) contiene el número de
+    pruebas de ese dominio con valor válido para cada persona.
 
     Parámetros
     ----------
@@ -120,11 +147,10 @@ def build_df_complete(
 
     Retorna
     -------
-    pd.DataFrame
-        `df_complete` con columnas: sheet_name, nivel_estudio, dc, age,
-        age_num, y una columna numérica por cada dominio cognitivo.
-        Sin valores nulos (los dominios con nulos moderados se imputan por
-        mediana del grupo clínico).
+    Tuple[pd.DataFrame, pd.DataFrame]
+        ``(df_mean, df_median)``
+        Los dominios con tasa de nulos < 30 % se imputan por mediana
+        del grupo clínico antes de retornar.
     """
     cols_id = ["sheet_name", "nivel_estudio", "dc", "age"]
 
@@ -133,14 +159,36 @@ def build_df_complete(
         [df_tabla_0_imp, df_tabla_1_imp], ignore_index=True, sort=False
     )
 
-    # Construcción de los dominios cognitivos (puntaje promedio ordinal)
+    # Construcción de los dominios cognitivos (media y mediana ordinales)
     df_complete = df_union[cols_id].copy()
+
+    dominio_mean_cols: List[str] = []
+    dominio_median_cols: List[str] = []
+    dominio_n_cols: List[str] = []          # n_{dominio} por dominio
     for dominio, cols in DOMINIOS.items():
-        df_complete[dominio] = _domain_score(df_union, cols)
+        mean_col   = f"{dominio}_mean"
+        median_col = f"{dominio}_median"
+        n_col      = f"n_{dominio}"
+
+        df_complete[mean_col], df_complete[median_col] = _domain_score(
+            df_union, cols
+        )
+
+        # n_{dominio}: pruebas del dominio con valor ordinal válido por persona
+        cols_present = [c for c in cols if c in df_union.columns]
+        if cols_present:
+            ordinal_dom = df_union[cols_present].apply(lambda s: s.map(ORDINAL_MAP))
+            df_complete[n_col] = ordinal_dom.notna().sum(axis=1).values
+        else:
+            df_complete[n_col] = 0
+
+        dominio_mean_cols.append(mean_col)
+        dominio_median_cols.append(median_col)
+        dominio_n_cols.append(n_col)
 
     # Imputación final de nulos en dominios (mediana por grupo clínico)
-    dominio_cols = list(DOMINIOS.keys())
-    for col in dominio_cols:
+    all_dominio_cols = dominio_mean_cols + dominio_median_cols
+    for col in all_dominio_cols:
         if df_complete[col].isna().mean() < 0.30:
             df_complete[col] = df_complete.groupby("dc")[col].transform(
                 lambda s: s.fillna(s.median())
@@ -156,10 +204,36 @@ def build_df_complete(
     # Columna numérica de edad (útil para gráficas)
     df_complete["age_num"] = pd.to_numeric(df_complete["age"], errors="coerce")
 
-    # Eliminar columna age
+    # Eliminar columna age (ya queda en age_num)
     df_complete.drop(columns=["age"], inplace=True)
 
-    return df_complete
+    # Columnas demográficas base
+    cols_demo = ["sheet_name", "nivel_estudio", "dc", "age_num"]
+
+    # Para cada dominio: intercalar n_{dominio} + score
+    # El orden resulta: sheet_name, nivel_estudio, dc, age_num,
+    #                   n_orientacion, orientacion, n_atencion, atencion, ...
+    mean_ordered_cols: List[str] = []
+    median_ordered_cols: List[str] = []
+    for n_col, mean_col, median_col in zip(
+        dominio_n_cols, dominio_mean_cols, dominio_median_cols
+    ):
+        mean_ordered_cols.extend([n_col, mean_col])
+        median_ordered_cols.extend([n_col, median_col])
+
+    # df_mean: demográficas + n_{dominio} + dominio (media)
+    df_mean = df_complete[cols_demo + mean_ordered_cols].copy()
+    df_mean = df_mean.rename(
+        columns={c: c.replace("_mean", "") for c in dominio_mean_cols}
+    )
+
+    # df_median: demográficas + n_{dominio} + dominio (mediana)
+    df_median = df_complete[cols_demo + median_ordered_cols].copy()
+    df_median = df_median.rename(
+        columns={c: c.replace("_median", "") for c in dominio_median_cols}
+    )
+
+    return df_mean, df_median
 
 
 
@@ -167,7 +241,7 @@ def build_df_complete(
 def run_etl(
     dotenv_path: str = ".env",
     verbose: bool = True,
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Ejecuta el pipeline ETL completo.
 
@@ -179,7 +253,7 @@ def run_etl(
     4. Extrae los features de cada hoja por separado.
     5. Normaliza los valores categóricos (interpretación clínica).
     6. Imputa los valores nulos con criterio clínico.
-    7. Construye `df_complete` con dominios cognitivos.
+    7. Construye ``df_mean`` y ``df_median`` con dominios cognitivos.
 
     Parámetros
     ----------
@@ -190,8 +264,8 @@ def run_etl(
 
     Retorna
     -------
-    Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]
-        (df_tabla_0_imp, df_tabla_1_imp, df_complete)
+    Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]
+        (df_tabla_0_imp, df_tabla_1_imp, df_mean, df_median)
     """
     # 1. Extracción
     if verbose:
@@ -263,28 +337,36 @@ def run_etl(
             f"df_tabla_1_imp : {df_tabla_1_imp.shape}"
         )
 
-    # 7. Construcción del dataframe conjunto
-    df_complete = build_df_complete(df_tabla_0_imp, df_tabla_1_imp)
+    # 7. Construcción de los DataFrames de dominios
+    df_mean, df_median = build_df_complete(df_tabla_0_imp, df_tabla_1_imp)
 
     if verbose:
-        print(f"\ndf_complete listo: {df_complete.shape}")
-        print(f"    Nulos restantes:\n{df_complete.isnull().sum()}")
-        n_ctrl = (df_complete["dc"] == 0).sum()
-        n_dcl = (df_complete["dc"] == 1).sum()
-        n_dem = (df_complete["dc"] == 2).sum()
+        print(f"\ndf_mean   listo: {df_mean.shape}")
+        print(f"df_median listo: {df_median.shape}")
+        print(f"\n    Nulos en df_mean:\n{df_mean.isnull().sum()}")
+        n_ctrl = (df_mean["dc"] == 0).sum()
+        n_dcl  = (df_mean["dc"] == 1).sum()
+        n_dem  = (df_mean["dc"] == 2).sum()
         print(
             f"\n    Distribución clínica:\n"
             f"      Control  : {n_ctrl}\n"
             f"      DCL      : {n_dcl}\n"
             f"      Demencia : {n_dem}\n"
-            f"      Total    : {len(df_complete)}"
+            f"      Total    : {len(df_mean)}"
         )
+        # Resumen de n_{dominio}
+        n_cols_present = [c for c in df_mean.columns if c.startswith("n_")]
+        print(f"\n    Pruebas por dominio (media de n_{{dominio}} en df_mean):")
+        for nc in n_cols_present:
+            print(f"      {nc:<22}: {df_mean[nc].mean():.1f}")
 
-    return df_tabla_0_imp, df_tabla_1_imp, df_complete
+    return df_tabla_0_imp, df_tabla_1_imp, df_mean, df_median
 
 
 #función principal para ejecutar el pipeline ETL
 if __name__ == "__main__":
-    df_tabla_0_imp, df_tabla_1_imp, df_complete = run_etl(verbose=True)
-    print("\nPrimeras filas de df_complete:")
-    print(df_complete.head())
+    df_tabla_0_imp, df_tabla_1_imp, df_mean, df_median = run_etl(verbose=True)
+    print("\nPrimeras filas de df_mean:")
+    print(df_mean.head())
+    print("\nPrimeras filas de df_median:")
+    print(df_median.head())
