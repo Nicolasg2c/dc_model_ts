@@ -187,12 +187,12 @@ def build_df_complete(
         dominio_n_cols.append(n_col)
 
     # Imputación final de nulos en dominios (mediana por grupo clínico)
-    all_dominio_cols = dominio_mean_cols + dominio_median_cols
-    for col in all_dominio_cols:
-        if df_complete[col].isna().mean() < 0.30:
-            df_complete[col] = df_complete.groupby("dc")[col].transform(
-                lambda s: s.fillna(s.median())
-            )
+    # all_dominio_cols = dominio_mean_cols + dominio_median_cols
+    # for col in all_dominio_cols:
+    #     if df_complete[col].isna().mean() < 0.30:
+    #         df_complete[col] = df_complete.groupby("dc")[col].transform(
+    #             lambda s: s.fillna(s.median())
+    #         )
 
     # Conversión de tipos
     df_complete["nivel_estudio"] = (
