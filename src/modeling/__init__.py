@@ -5,5 +5,6 @@ from .config import (
 )
 
 from .utils import (
-    train_model
+    train_model,
+    get_confusion_matrix
 )
