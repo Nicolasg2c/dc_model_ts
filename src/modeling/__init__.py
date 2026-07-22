@@ -8,5 +8,7 @@ from .config import (
 from .utils import (
     train_model,
     get_confusion_matrix,
-    print_scores
+    print_scores,
+    compare_datasets_wilcoxon,
+    graficar_curvas_roc_multiclase
 )
