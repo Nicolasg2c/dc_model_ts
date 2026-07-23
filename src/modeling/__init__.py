@@ -10,5 +10,6 @@ from .utils import (
     get_confusion_matrix,
     print_scores,
     compare_datasets_wilcoxon,
-    graficar_curvas_roc_multiclase
+    graficar_curvas_roc_multiclase,
+    nested_cross_validation
 )

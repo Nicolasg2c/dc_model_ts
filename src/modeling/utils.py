@@ -2,7 +2,7 @@ from sklearn.impute import SimpleImputer
 from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
-from sklearn.model_selection import cross_val_predict, cross_validate
+from sklearn.model_selection import GridSearchCV, cross_val_predict, cross_validate
 from sklearn.metrics import roc_curve, roc_auc_score
 from sklearn.preprocessing import label_binarize
 import matplotlib.pyplot as plt
@@ -552,3 +552,109 @@ def graficar_curvas_roc_multiclase(model, model_name, X, y, cv, class_names=['Co
     auc_scores['Macro_Average'] = macro_roc_auc
     
     return auc_scores
+
+
+def apply_grid_search(pipeline, parametros, X, y, cv):
+    """
+    Función para aplicar GridSearchCV a un pipeline de scikit-learn.
+    
+    Args:
+        pipeline: Pipeline de scikit-learn que contiene el modelo y los pasos de preprocesamiento.
+        parametros: Diccionario con los parámetros a buscar en el GridSearchCV.
+        X: Características predictoras.
+        y: Variable objetivo.
+        cv: Estrategia de validación cruzada.
+    Returns:
+        best_model: El mejor modelo encontrado por GridSearchCV.
+        best_params: Los mejores parámetros encontrados.
+    """
+
+    grid_search = GridSearchCV(pipeline, parametros, cv=cv, scoring='f1_macro', n_jobs=-1)
+    grid_search.fit(X, y)
+    
+    
+    return grid_search
+
+
+    from sklearn.model_selection import GridSearchCV, cross_validate
+
+from sklearn.model_selection import GridSearchCV, cross_validate
+
+
+def nested_cross_validation(
+    pipeline,
+    parametros,
+    X,
+    y,
+    cv_interno,
+    cv_externo,
+    scoring
+):
+    
+    # 1. BÚSQUEDA DE HIPERPARÁMETROS EN EL CICLO INTERNO
+    # ____________________________________________________________________________
+    # Se utiliza GridSearchCV para encontrar la mejor combinación de hiperparámetros
+    
+    grid_search = GridSearchCV(
+        estimator=pipeline,
+        param_grid=parametros,
+        cv=cv_interno,
+        scoring=scoring,
+        n_jobs=-1
+    )
+    
+    # 2. VALIDACIÓN CRUZADA ANIDADA
+    # _____________________________________________________________________________
+    
+    # En cada partición externa:
+    # - GridSearchCV busca los mejores hiperparámetros usando únicamente
+    #   los datos de entrenamiento de esa partición.
+    # - El modelo seleccionado se evalúa sobre el conjunto de prueba externo.
+    
+    resultados = cross_validate(
+        estimator=grid_search,
+        X=X,
+        y=y,
+        cv=cv_externo,
+        scoring=scoring,
+        n_jobs=-1,
+        return_train_score=False
+    )
+    
+    
+    # 3. BÚSQUEDA FINAL DE HIPERPARÁMETROS
+    # ____________________________________________________________________________
+    
+    # Se realiza una nueva búsqueda utilizando todos los datos disponibles.
+    # El objetivo es obtener la configuración óptima que se utilizará
+    # posteriormente para entrenar el modelo final.
+    
+    grid_final = GridSearchCV(
+        estimator=pipeline,
+        param_grid=parametros,
+        cv=cv_interno,
+        scoring=scoring,
+        n_jobs=-1
+    )
+    
+    grid_final.fit(X, y)
+    
+    
+    # 4. OBTENER MEJORES HIPERPARÁMETROS
+    # ____________________________________________________________________________
+
+    mejores_parametros = grid_final.best_params_
+    mejor_score_interno = grid_final.best_score_
+    mejor_modelo = grid_final.best_estimator_
+    
+    
+    # =========================================================================
+    # 5. RETORNAR TODOS LOS RESULTADOS
+    # =========================================================================
+    
+    return {
+        'test_score': resultados['test_score'],
+        'mejores_parametros': mejores_parametros,
+        'mejor_score_interno': mejor_score_interno,
+        'mejor_modelo': mejor_modelo
+    }
