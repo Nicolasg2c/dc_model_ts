@@ -36,7 +36,7 @@ def get_confusion_matrix(models, X, y, cv_kfold):
             ('imputer', SimpleImputer(strategy='median')),
             ('scaler', StandardScaler()),
             ('classifier', model)
-        ])
+            ])
          #Se generan de nuevo las predicciones para todo el dataset, pero cada paciente es evaluado solo cuando su fold fue el "fold de prueba".
         y_pred = cross_val_predict(pipeline, X, y, cv=cv_kfold)
         
