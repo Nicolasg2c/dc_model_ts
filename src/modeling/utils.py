@@ -80,11 +80,17 @@ def print_scores(models, X, y, cv_kfold):
             "Balanced Accuracy": cv_scores['test_balanced_accuracy'].mean(),
             "Bal. Acc. (Std)": cv_scores['test_balanced_accuracy'].std(),
             "Sensibilidad Control": cv_scores['test_sens_control'].mean(),
+            'Sensbilidad Control (Std)': cv_scores['test_sens_control'].std(),
             "Sensibilidad DCL": cv_scores['test_sens_dcl'].mean(),
+            'Sensibilidad DCL (Std)': cv_scores['test_sens_dcl'].std(),
             "Sensibilidad Demencia": cv_scores['test_sens_demencia'].mean(),
+            'Sensibilidad Demencia (Std)': cv_scores['test_sens_demencia'].std(),
             "Especificidad Control": cv_scores['test_spec_control'].mean(),
+            'Especificidad DCL (Std)': cv_scores['test_spec_dcl'].std(),
             "Especificidad DCL": cv_scores['test_spec_dcl'].mean(),
-            "Especificidad Demencia": cv_scores['test_spec_demencia'].mean()
+            'Especificidad DCL (Std)': cv_scores['test_spec_dcl'].std(),
+            "Especificidad Demencia": cv_scores['test_spec_demencia'].mean(),
+            'Especificidad Demencia (Std)': cv_scores['test_spec_demencia'].std()
         })
         results_overfitting.append({
             "Modelo": name,
