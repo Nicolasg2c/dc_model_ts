@@ -11,5 +11,6 @@ from .utils import (
     print_scores,
     compare_datasets_wilcoxon,
     graficar_curvas_roc_multiclase,
-    nested_cross_validation
+    nested_cross_validation,
+    nested_cross_validation_multi
 )

@@ -576,42 +576,35 @@ def apply_grid_search(pipeline, parametros, X, y, cv):
     return grid_search
 
 
-    from sklearn.model_selection import GridSearchCV, cross_validate
-
-from sklearn.model_selection import GridSearchCV, cross_validate
-
-
-def nested_cross_validation(
+def nested_cross_validation_multi(
     pipeline,
     parametros,
     X,
     y,
     cv_interno,
     cv_externo,
-    scoring
+    scoring,
+    metrica_optimizacion='f1_macro'  #Metrica para la selección de hiperparametros
 ):
+    """
+    Ejecuta Nested CV optimizando por una métrica principal ('metrica_optimizacion')
+    y evaluando un diccionario completo de métricas clínicas ('scoring') en el ciclo externo.
+    """
     
     # 1. BÚSQUEDA DE HIPERPARÁMETROS EN EL CICLO INTERNO
     # ____________________________________________________________________________
-    # Se utiliza GridSearchCV para encontrar la mejor combinación de hiperparámetros
-    
+    #Se optimiza unicamente con la métrica general.
     grid_search = GridSearchCV(
         estimator=pipeline,
         param_grid=parametros,
         cv=cv_interno,
-        scoring=scoring,
+        scoring=metrica_optimizacion,
         n_jobs=-1
     )
     
-    # 2. VALIDACIÓN CRUZADA ANIDADA
-    # _____________________________________________________________________________
-    
-    # En cada partición externa:
-    # - GridSearchCV busca los mejores hiperparámetros usando únicamente
-    #   los datos de entrenamiento de esa partición.
-    # - El modelo seleccionado se evalúa sobre el conjunto de prueba externo.
-    
-    resultados = cross_validate(
+    # 2. VALIDACIÓN CRUZADA ANIDADA (Evaluación Multidimensional)
+    # ____________________________________________________________________________
+    resultados_externos = cross_validate(
         estimator=grid_search,
         X=X,
         y=y,
@@ -621,40 +614,29 @@ def nested_cross_validation(
         return_train_score=False
     )
     
+    # Procesar el promedio y la desviación estándar de cada una de las métricas
+    metricas_resumen = {}
+    for nombre_metrica in scoring.keys():
+        key_test = f"test_{nombre_metrica}"
+        scores = resultados_externos[key_test]
+        metricas_resumen[nombre_metrica] = {
+            'mean': np.mean(scores),
+            'std': np.std(scores)
+        }
     
-    # 3. BÚSQUEDA FINAL DE HIPERPARÁMETROS
+    # 3. ENTRENAMIENTO DEL MODELO FINAL
     # ____________________________________________________________________________
-    
-    # Se realiza una nueva búsqueda utilizando todos los datos disponibles.
-    # El objetivo es obtener la configuración óptima que se utilizará
-    # posteriormente para entrenar el modelo final.
-    
     grid_final = GridSearchCV(
         estimator=pipeline,
         param_grid=parametros,
         cv=cv_interno,
-        scoring=scoring,
+        scoring=metrica_optimizacion,
         n_jobs=-1
     )
-    
     grid_final.fit(X, y)
     
-    
-    # 4. OBTENER MEJORES HIPERPARÁMETROS
-    # ____________________________________________________________________________
-
-    mejores_parametros = grid_final.best_params_
-    mejor_score_interno = grid_final.best_score_
-    mejor_modelo = grid_final.best_estimator_
-    
-    
-    # =========================================================================
-    # 5. RETORNAR TODOS LOS RESULTADOS
-    # =========================================================================
-    
     return {
-        'test_score': resultados['test_score'],
-        'mejores_parametros': mejores_parametros,
-        'mejor_score_interno': mejor_score_interno,
-        'mejor_modelo': mejor_modelo
+        'metricas_evaluacion': metricas_resumen,
+        'mejores_parametros': grid_final.best_params_,
+        'modelo_final': grid_final.best_estimator_
     }
