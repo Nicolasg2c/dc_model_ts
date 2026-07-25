@@ -383,9 +383,9 @@ def compare_datasets_wilcoxon(models, X_mean, y_mean, X_median, y_median, cv, me
         None
     )
 
-    display(
-        df_results.round(4)
-    )
+    # display(
+    #     df_results.round(4)
+    # )
 
     # ---------------------------------------------------------
     # Graficar
