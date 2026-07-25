@@ -86,7 +86,7 @@ def print_scores(models, X, y, cv_kfold):
             "Sensibilidad Demencia": cv_scores['test_sens_demencia'].mean(),
             'Sensibilidad Demencia (Std)': cv_scores['test_sens_demencia'].std(),
             "Especificidad Control": cv_scores['test_spec_control'].mean(),
-            'Especificidad DCL (Std)': cv_scores['test_spec_dcl'].std(),
+            "Especificidad Control (Std)": cv_scores['test_spec_control'].std(),
             "Especificidad DCL": cv_scores['test_spec_dcl'].mean(),
             'Especificidad DCL (Std)': cv_scores['test_spec_dcl'].std(),
             "Especificidad Demencia": cv_scores['test_spec_demencia'].mean(),
