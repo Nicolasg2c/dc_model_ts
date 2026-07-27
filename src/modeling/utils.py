@@ -60,23 +60,18 @@ def print_scores(models, X, y, cv_kfold):
     for name, model in models.items():
         cv_scores = train_model(model, X, y, cv_kfold)
         
-        # medias para calcular la brecha entre entrenamiento y validación/test, para detectar sobreentrenamiento
-        train_f1 = cv_scores['train_f1_macro'].mean()
-        test_f1 = cv_scores['test_f1_macro'].mean()
-        train_balanced_accuracy = cv_scores['train_balanced_accuracy'].mean()
-        test_balanced_accuracy = cv_scores['test_balanced_accuracy'].mean()
-        train_sens_control = cv_scores['train_sens_control'].mean()
-        test_sens_control = cv_scores['test_sens_control'].mean()
-        train_sens_dcl = cv_scores['train_sens_dcl'].mean()
-        test_sens_dcl = cv_scores['test_sens_dcl'].mean()
-        train_sens_demencia = cv_scores['train_sens_demencia'].mean()
-        test_sens_demencia = cv_scores['test_sens_demencia'].mean()
+        # Extraer los arreglos de métricas por fold
+        train_f1_arr = cv_scores['train_f1_macro']
+        test_f1_arr = cv_scores['test_f1_macro']
         
-        # Calcular y almacenar las medias y desviaciones estándar
+        # Calcular la brecha 
+        f1_gap_arr = train_f1_arr - test_f1_arr
+        
+        # Tabla Principal de Resultados
         results.append({
             "Modelo": name,
-            "F1-Score Macro": test_f1,
-            "F1-Score (Std)": cv_scores['test_f1_macro'].std(),
+            "F1-Score Macro": test_f1_arr.mean(),
+            "F1-Score (Std)": test_f1_arr.std(),
             "Balanced Accuracy": cv_scores['test_balanced_accuracy'].mean(),
             "Bal. Acc. (Std)": cv_scores['test_balanced_accuracy'].std(),
             "Sensibilidad Control": cv_scores['test_sens_control'].mean(),
@@ -92,25 +87,26 @@ def print_scores(models, X, y, cv_kfold):
             "Especificidad Demencia": cv_scores['test_spec_demencia'].mean(),
             'Especificidad Demencia (Std)': cv_scores['test_spec_demencia'].std()
         })
+        
+        # Tabla de Overfitting
         results_overfitting.append({
             "Modelo": name,
-            "F1 (Entrenamiento)": train_f1,
-            "F1 (Validación / Test)": test_f1,
-            # Si la brecha es muy grande (> 0.15), hay sobreentrenamiento
-            "Brecha (Caída)": train_f1 - test_f1,
-            "F1 Validación (Std)": cv_scores['test_f1_macro'].std()
+            "F1 (Entrenamiento)": train_f1_arr.mean(),
+            "F1 (Validación / Test)": test_f1_arr.mean(),
+            "Brecha (Caída)": f1_gap_arr.mean(),
+            "Brecha (Std)": f1_gap_arr.std() 
         })
         
         
-    # Resultados, ordenados de mejor a peor
+    # Mostrar Resultados, ordenados de mejor a peor
     df_results = pd.DataFrame(results).sort_values(by="F1-Score Macro", ascending=False)
     print("Resultados de los modelos")
     print("-" * 70)
     display(df_results.round(4))
 
-    # Resultados del overfitting
+    # Mostrar Resultados del overfitting
     df_overfit = pd.DataFrame(results_overfitting).sort_values(by="F1 (Validación / Test)", ascending=False)
-    print("Analisis de overfitting")
+    print("Análisis de overfitting")
     print("-" * 85)
     display(df_overfit.round(4))
 
@@ -590,16 +586,14 @@ def nested_cross_validation_multi(
     cv_interno,
     cv_externo,
     scoring,
-    metrica_optimizacion='f1_macro'  #Metrica para la selección de hiperparametros
+    metrica_optimizacion='f1_macro'
 ):
     """
-    Ejecuta Nested CV optimizando por una métrica principal ('metrica_optimizacion')
-    y evaluando un diccionario completo de métricas clínicas ('scoring') en el ciclo externo.
+    Ejecuta Nested CV calculando el score de train (validación interna) y test (externo)
+    para medir la brecha de rendimiento (overfitting gap).
     """
     
     # 1. BÚSQUEDA DE HIPERPARÁMETROS EN EL CICLO INTERNO
-    # ____________________________________________________________________________
-    #Se optimiza unicamente con la métrica general.
     grid_search = GridSearchCV(
         estimator=pipeline,
         param_grid=parametros,
@@ -608,8 +602,7 @@ def nested_cross_validation_multi(
         n_jobs=-1
     )
     
-    # 2. VALIDACIÓN CRUZADA ANIDADA (Evaluación Multidimensional)
-    # ____________________________________________________________________________
+    # 2. VALIDACIÓN CRUZADA ANIDADA
     resultados_externos = cross_validate(
         estimator=grid_search,
         X=X,
@@ -617,21 +610,29 @@ def nested_cross_validation_multi(
         cv=cv_externo,
         scoring=scoring,
         n_jobs=-1,
-        return_train_score=False
+        return_train_score=True  # <--- Habilitado
     )
     
-    # Procesar el promedio y la desviación estándar de cada una de las métricas
+    # Procesar métricas incluyendo la brecha (Train - Test)
     metricas_resumen = {}
     for nombre_metrica in scoring.keys():
         key_test = f"test_{nombre_metrica}"
-        scores = resultados_externos[key_test]
+        key_train = f"train_{nombre_metrica}"
+        
+        scores_test = resultados_externos[key_test]
+        scores_train = resultados_externos[key_train]
+        brechas = scores_train - scores_test  # Diferencia por cada fold externo
+        
         metricas_resumen[nombre_metrica] = {
-            'mean': np.mean(scores),
-            'std': np.std(scores)
+            'test_mean': np.mean(scores_test),
+            'test_std': np.std(scores_test),
+            'train_mean': np.mean(scores_train),
+            'train_std': np.std(scores_train),
+            'gap_mean': np.mean(brechas),
+            'gap_std': np.std(brechas)
         }
     
     # 3. ENTRENAMIENTO DEL MODELO FINAL
-    # ____________________________________________________________________________
     grid_final = GridSearchCV(
         estimator=pipeline,
         param_grid=parametros,
