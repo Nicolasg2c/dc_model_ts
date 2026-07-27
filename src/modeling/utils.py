@@ -152,8 +152,6 @@ def compare_datasets_wilcoxon(models, X_mean, y_mean, X_median, y_median, cv, me
         print(f"Evaluando modelo: {model_name}...")
 
         # Entrenar en ambos datasets usando el mismo esquema de validación cruzada.
-        # Se asume que X_mean y X_median contienen los mismos registros,
-        # en el mismo orden, y que y_mean e y_median son iguales.
         cv_scores_mean = train_model(
             model,
             X_mean,
@@ -188,8 +186,6 @@ def compare_datasets_wilcoxon(models, X_mean, y_mean, X_median, y_median, cv, me
                 cv_scores_median[metric]
             )
 
-            # Verificar que ambos conjuntos tengan
-            # el mismo número de resultados
             if len(scores_mean) != len(scores_median):
                 raise ValueError(
                     f"El número de resultados de validación cruzada "
@@ -361,7 +357,7 @@ def compare_datasets_wilcoxon(models, X_mean, y_mean, X_median, y_median, cv, me
             })
 
     # ---------------------------------------------------------
-    # Crear DataFrame de resultados
+    # Resultados finales
     # ---------------------------------------------------------
 
     df_results = pd.DataFrame(
@@ -383,12 +379,12 @@ def compare_datasets_wilcoxon(models, X_mean, y_mean, X_median, y_median, cv, me
         None
     )
 
-    display(
-        df_results.round(4)
-    )
+    # display(
+    #     df_results.round(4)
+    # )
 
     # ---------------------------------------------------------
-    # Graficar si se requiere
+    # Graficar
     # ---------------------------------------------------------
 
     if plot_results and len(plot_data) > 0:
