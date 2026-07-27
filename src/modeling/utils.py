@@ -5,12 +5,17 @@ from sklearn.pipeline import Pipeline
 from sklearn.model_selection import GridSearchCV, cross_val_predict, cross_validate
 from sklearn.metrics import roc_curve, roc_auc_score
 from sklearn.preprocessing import label_binarize
+from sklearn.base import clone
+from sklearn.inspection import permutation_importance
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
 import matplotlib.pyplot as plt
-from .config import scoring
+from .config import scoring, seed
 import numpy as np
 import pandas as pd
 from scipy.stats import wilcoxon
 import seaborn as sns
+import shap
 
 
 def train_model(model, X, y, cv):
@@ -643,3 +648,333 @@ def nested_cross_validation_multi(
         'mejores_parametros': grid_final.best_params_,
         'modelo_final': grid_final.best_estimator_
     }
+
+
+def permutation_importance_cv(
+    model,
+    X,
+    y,
+    cv,
+    scoring='f1_macro',
+    n_repeats=30,
+    random_state=seed,
+    model_name=None
+):
+    """
+    Calcula la importancia por permutación sobre cada partición
+    de validación cruzada y genera una gráfica con el nombre del modelo en el título.
+    """
+    if model_name is None:
+        if isinstance(model, Pipeline):
+            model_name = type(model.steps[-1][1]).__name__
+        else:
+            model_name = type(model).__name__
+
+    importancias_folds = []
+
+    for fold, (train_idx, val_idx) in enumerate(cv.split(X, y), start=1):
+        X_train = X.iloc[train_idx] if hasattr(X, 'iloc') else X[train_idx]
+        X_val = X.iloc[val_idx] if hasattr(X, 'iloc') else X[val_idx]
+
+        y_train = y.iloc[train_idx] if hasattr(y, 'iloc') else y[train_idx]
+        y_val = y.iloc[val_idx] if hasattr(y, 'iloc') else y[val_idx]
+
+        modelo_fold = clone(model)
+        modelo_fold.fit(X_train, y_train)
+
+        resultado = permutation_importance(
+            modelo_fold,
+            X_val,
+            y_val,
+            scoring=scoring,
+            n_repeats=n_repeats,
+            random_state=random_state,
+            n_jobs=-1
+        )
+        importancias_folds.append(resultado.importances_mean)
+
+    importancias_folds = np.array(importancias_folds)
+
+    importancia_media = np.mean(importancias_folds, axis=0)
+    importancia_std = np.std(importancias_folds, axis=0)
+
+    nombres_variables = [col.replace('_', ' ').capitalize() for col in X.columns]
+    
+    df_importancia = pd.DataFrame({
+        'Variable': nombres_variables,
+        'Importancia_Media': importancia_media,
+        'Importancia_Std': importancia_std
+    }).sort_values(by='Importancia_Media', ascending=False).reset_index(drop=True)
+
+    altura_fig = max(6, len(df_importancia) * 0.4)
+    fig, ax = plt.subplots(figsize=(10, altura_fig))
+
+    posiciones = np.arange(len(df_importancia))
+
+    norm = plt.Normalize(
+        df_importancia['Importancia_Media'].min(),
+        df_importancia['Importancia_Media'].max()
+    )
+    colores = plt.cm.viridis(norm(df_importancia['Importancia_Media']))
+
+    ax.barh(
+        posiciones,
+        df_importancia['Importancia_Media'],
+        xerr=df_importancia['Importancia_Std'],
+        capsize=4,
+        color=colores,
+        ecolor='black',
+        alpha=0.85
+    )
+
+    ax.set_yticks(posiciones)
+    ax.set_yticklabels(df_importancia['Variable'], fontsize=10)
+    ax.invert_yaxis()
+
+    metric_label = scoring.replace('_', ' ').upper() if isinstance(scoring, str) else 'Métrica'
+    ax.set_xlabel(f'Disminución promedio en {metric_label}', fontsize=11, labelpad=10)
+    ax.set_ylabel('Variable', fontsize=11)
+    ax.set_title(f'Importancia de las variables ({model_name})', fontweight='bold', fontsize=13)
+    ax.axvline(x=0, color='gray', linestyle='--', linewidth=1, alpha=0.7)
+    
+    max_reach = (df_importancia['Importancia_Media'] + df_importancia['Importancia_Std']).max()
+    min_reach = (df_importancia['Importancia_Media'] - df_importancia['Importancia_Std']).min()
+
+    rango = max_reach - min(0, min_reach)
+    offset = rango * 0.02 if rango > 0 else 0.005
+
+    for i, (valor, desviacion) in enumerate(zip(df_importancia['Importancia_Media'], df_importancia['Importancia_Std'])):
+        if valor >= 0:
+            pos_x = valor + desviacion + offset
+            ha_align = 'left'
+        else:
+            pos_x = valor - desviacion - offset
+            ha_align = 'right'
+
+        ax.text(
+            pos_x,
+            i,
+            f'{valor:.4f} ± {desviacion:.4f}',
+            va='center',
+            ha=ha_align,
+            fontsize=8.5,
+            fontweight='bold'
+        )
+
+    lim_max = max_reach + (rango * 0.25) if max_reach > 0 else 0.05
+    lim_min = min_reach - (rango * 0.25) if min_reach < 0 else -0.01
+    
+    ax.set_xlim(lim_min, lim_max)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+    plt.tight_layout()
+    plt.show()
+
+    return df_importancia, fig
+
+
+def shap_importance_models(model, X, model_name="Modelo"):
+    """
+    Calcula la importancia mediante SHAP evitando el AttributeError
+    en las propiedades read-only de Scikit-Learn / Pipeline.
+    """
+    nombres_cols = [col.replace('_', ' ').capitalize() for col in X.columns]
+
+    print(f"Calculando SHAP para {model_name}...")
+
+    if hasattr(model, 'steps'):
+        estimator = model.steps[-1][1]
+    else:
+        estimator = model
+
+    # Random Forest
+    if isinstance(estimator, RandomForestClassifier):
+        X_prep = model.steps[0][1].transform(X) if hasattr(model, 'steps') else X
+        X_prep_df = pd.DataFrame(X_prep, columns=nombres_cols)
+        explainer = shap.TreeExplainer(estimator)
+        shap_vals = explainer.shap_values(X_prep_df)
+
+    # Regresión Logística
+    elif isinstance(estimator, LogisticRegression):
+        X_prep = model.steps[0][1].transform(X) if hasattr(model, 'steps') else X
+        X_prep_df = pd.DataFrame(X_prep, columns=nombres_cols)
+        explainer = shap.LinearExplainer(estimator, X_prep_df)
+        shap_vals = explainer.shap_values(X_prep_df)
+
+    # SVMs
+    else:
+        if hasattr(model, "decision_function"):
+            fn = lambda data: model.decision_function(pd.DataFrame(data, columns=X.columns))
+        elif hasattr(model, "predict_proba"):
+            fn = lambda data: model.predict_proba(pd.DataFrame(data, columns=X.columns))[:, 1]
+        else:
+            fn = lambda data: model.predict(pd.DataFrame(data, columns=X.columns))
+
+        X_array = X.values if hasattr(X, 'values') else X
+        
+        idx_sample = np.random.choice(len(X_array), min(30, len(X_array)), replace=False)
+        background = X_array[idx_sample]
+
+        explainer = shap.KernelExplainer(fn, background)
+        shap_vals = explainer.shap_values(X_array)
+
+    if isinstance(shap_vals, list):
+        vals = shap_vals[1] if len(shap_vals) > 1 else shap_vals[0]
+    elif len(np.shape(shap_vals)) == 3:
+        vals = shap_vals[:, :, 1]
+    else:
+        vals = shap_vals
+
+    abs_vals = np.abs(vals)
+    mean_shap = np.mean(abs_vals, axis=0)
+    std_shap = np.std(abs_vals, axis=0)
+
+    df_shap = pd.DataFrame({
+        'Variable': nombres_cols,
+        'Importancia_Media': mean_shap,
+        'Importancia_Std': std_shap
+    }).sort_values(by='Importancia_Media', ascending=False).reset_index(drop=True)
+    
+    plt.close('all')
+    
+    altura_fig = max(6, len(df_shap) * 0.45)
+    fig, ax = plt.subplots(figsize=(10, altura_fig), dpi=100)
+
+    posiciones = np.arange(len(df_shap))
+
+    min_val = df_shap['Importancia_Media'].min()
+    max_val = df_shap['Importancia_Media'].max()
+    norm = plt.Normalize(min_val, max_val)
+    colores = plt.cm.viridis(norm(df_shap['Importancia_Media']))
+
+    ax.barh(
+        posiciones,
+        df_shap['Importancia_Media'],
+        xerr=df_shap['Importancia_Std'],
+        capsize=4,
+        color=colores,
+        ecolor='black',
+        alpha=0.85
+    )
+
+    ax.set_yticks(posiciones)
+    ax.set_yticklabels(df_shap['Variable'], fontsize=10)
+    ax.invert_yaxis()
+
+    ax.set_xlabel('Importancia Promedio |SHAP value|', fontsize=11, labelpad=10)
+    ax.set_ylabel('Variable', fontsize=11)
+    ax.set_title(f'Importancia de las variables mediante SHAP ({model_name})', fontweight='bold', fontsize=13)
+    ax.axvline(x=0, color='gray', linestyle='--', linewidth=1, alpha=0.7)
+
+    max_reach = (df_shap['Importancia_Media'] + df_shap['Importancia_Std']).max()
+    offset = max_reach * 0.02 if max_reach > 0 else 0.005
+
+    for i, (valor, desviacion) in enumerate(zip(df_shap['Importancia_Media'], df_shap['Importancia_Std'])):
+        ax.text(
+            valor + desviacion + offset,
+            i,
+            f'{valor:.4f} ± {desviacion:.4f}',
+            va='center',
+            ha='left',
+            fontsize=8.5,
+            fontweight='bold'
+        )
+
+    limite_derecho = max_reach * 1.35 if max_reach > 0 else 0.1
+    ax.set_xlim(-0.001, limite_derecho)
+
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+    plt.tight_layout()
+    plt.show()
+
+    return df_shap, fig
+
+
+def explicar_clasificacion_individual(model, X, idx_individuo=0, model_name="Modelo", clase_idx=1):
+    """
+    explicacion individual SHAP compatible con Pipelines, Random Forest, 
+    Regresión Logística, SVM (RBF / Lineal) y problemas multiclase (0, 1, 2...).
+    
+    Todas las explicaciones de modelos probabilísticos se devuelven 
+    en la escala directa de PROBABILIDAD (0 a 1).
+    """
+    nombres_cols = [col.replace('_', ' ').capitalize() for col in X.columns]
+    individuo_orig = X.iloc[idx_individuo]
+
+    if hasattr(model, 'steps'):
+        estimator = model.steps[-1][1]
+        X_prep = model.steps[0][1].transform(X) if len(model.steps) > 1 else X
+    else:
+        estimator = model
+        X_prep = X
+
+    X_prep_df = pd.DataFrame(X_prep, columns=nombres_cols) if isinstance(X_prep, np.ndarray) else X_prep
+
+    print(f"Calculando explicacion individual para individuo #{idx_individuo} ({model_name}) | Clase {clase_idx}...")
+
+    # RANDOM FOREST
+    if isinstance(estimator, RandomForestClassifier):
+        explainer = shap.TreeExplainer(estimator)
+        shap_values = explainer(X_prep_df)
+        
+        if len(shap_values.shape) == 3:
+            exp_individuo = shap_values[idx_individuo, :, clase_idx]
+        else:
+            exp_individuo = shap_values[idx_individuo]
+
+    # MODELOS CON PROBABILIDAD (Regresión Logística, SVM RBF)
+    elif hasattr(model, "predict_proba"):
+        def fn_prob(x):
+            df_x = pd.DataFrame(x, columns=X.columns)
+            return model.predict_proba(df_x)[:, clase_idx]
+
+        background = shap.sample(X, min(50, len(X)), random_state=42)
+        explainer = shap.KernelExplainer(fn_prob, background)
+        
+        sv = explainer.shap_values(X.iloc[[idx_individuo]], nsamples=100)
+        
+        vals_1d = sv[0] if isinstance(sv, list) else sv
+        base_val = explainer.expected_value
+
+        exp_individuo = shap.Explanation(
+            values=np.array(vals_1d, dtype=float).ravel(),
+            base_values=float(base_val if np.isscalar(base_val) else base_val[0]),
+            data=individuo_orig.values,
+            feature_names=nombres_cols
+        )
+
+    # MODELOS SIN PROBABILIDAD
+    else:
+        def fn_decision(x):
+            df_x = pd.DataFrame(x, columns=X.columns)
+            res = model.decision_function(df_x)
+            if res.ndim > 1:
+                return res[:, clase_idx]
+            return res
+
+        background = shap.sample(X, min(50, len(X)), random_state=42)
+        explainer = shap.KernelExplainer(fn_decision, background)
+        
+        sv = explainer.shap_values(X.iloc[[idx_individuo]], nsamples=100)
+        vals_1d = sv[0] if isinstance(sv, list) else sv
+        base_val = explainer.expected_value
+
+        exp_individuo = shap.Explanation(
+            values=np.array(vals_1d, dtype=float).ravel(),
+            base_values=float(base_val if np.isscalar(base_val) else base_val[0]),
+            data=individuo_orig.values,
+            feature_names=nombres_cols
+        )
+
+    exp_individuo.data = individuo_orig.values
+    exp_individuo.feature_names = nombres_cols
+
+    plt.close('all')
+    fig = plt.figure(figsize=(9, 6), dpi=100)
+    shap.plots.waterfall(exp_individuo, show=False)
+    plt.title(f'explicacion Individual - Individuo #{idx_individuo} ({model_name}) | Clase {clase_idx}', fontweight='bold', pad=15)
+    plt.tight_layout()
+    plt.show()
