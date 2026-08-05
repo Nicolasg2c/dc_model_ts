@@ -48,6 +48,7 @@ La función principal es `run_etl()` y devuelve:
 - **Python `>= 3.14`**
 - **uv** (Recomendado para la gestión de dependencias y entornos virtuales rápidos) o **Python venv + pip**
 - Acceso a la fuente de datos (requiere un token de GitHub si el repositorio del que descarga los datos es privado o para evitar rate-limiting)
+- **streamlit** para la interfaz web de inferencia
 
 ### Dependencias principales
 
@@ -263,6 +264,26 @@ from src.modeling import (
     nested_cross_validation_multi
 )
 ```
+
+## Despliegue sencillo
+
+La forma más simple de usar el modelo en una interfaz gráfica es con Streamlit. La aplicación principal está en [app.py](app.py) y permite cargar datos por texto CSV o por archivo.
+
+### Ejecutar localmente
+
+```bash
+uv sync
+streamlit run app.py
+```
+
+### Ejecutar con Docker
+
+```bash
+docker build -t dc-model-app .
+docker run --rm -p 8501:8501 dc-model-app
+```
+
+Por defecto la interfaz abre el modelo de SVM lineal. Si prefieres otro, puedes seleccionarlo en la barra lateral.
 
 ---
 

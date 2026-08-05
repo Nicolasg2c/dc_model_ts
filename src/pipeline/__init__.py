@@ -26,7 +26,13 @@ from .features import extract_features_from_table, extract_patient_info, search_
 from .imputation import imputacion_null, null_data_info
 from .normalization import normalize_tabla_0, normalize_tabla_1
 from .utils import clean_value, limpiar_texto
-from .etl import build_df_complete, load_excel_from_github, run_etl
+from .etl import (
+    build_df_complete,
+    load_excel_from_bytes,
+    load_excel_from_github,
+    run_etl,
+    run_etl_from_excel_bytes,
+)
 
 __all__ = [
     # config
@@ -58,7 +64,9 @@ __all__ = [
     "null_data_info",
     "imputacion_null",
     # etl (orchestrator)
+    "load_excel_from_bytes",
     "load_excel_from_github",
     "build_df_complete",
     "run_etl",
+    "run_etl_from_excel_bytes",
 ]

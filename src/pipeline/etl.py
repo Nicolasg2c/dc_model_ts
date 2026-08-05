@@ -57,6 +57,28 @@ warnings.filterwarnings("ignore")
 
 
 #Extracción de datos desde GitHub
+def load_excel_from_bytes(excel_bytes: bytes) -> Dict[str, pd.DataFrame]:
+    """
+    Lee el contenido de un archivo Excel desde bytes en memoria.
+
+    Parámetros
+    ----------
+    excel_bytes : bytes
+        Contenido binario del archivo .xlsx.
+
+    Retorna
+    -------
+    Dict[str, pd.DataFrame]
+        Diccionario {nombre_hoja: DataFrame} con todas las hojas del libro.
+    """
+    return pd.read_excel(
+        BytesIO(excel_bytes),
+        header=None,
+        sheet_name=None,
+        engine="openpyxl",
+    )
+
+
 def load_excel_from_github(dotenv_path: str = ".env") -> Dict[str, pd.DataFrame]:
     """
     Descarga el archivo Excel desde GitHub usando las credenciales del .env.
@@ -78,12 +100,7 @@ def load_excel_from_github(dotenv_path: str = ".env") -> Dict[str, pd.DataFrame]
     response = requests.get(url, headers=headers, timeout=30)
     response.raise_for_status()
 
-    return pd.read_excel(
-        BytesIO(response.content),
-        header=None,
-        sheet_name=None,
-        engine="openpyxl",
-    )
+    return load_excel_from_bytes(response.content)
 
 
 #Construcción de df_complete con dominios cognitivos
@@ -359,6 +376,98 @@ def run_etl(
         print(f"\n    Pruebas por dominio (media de n_{{dominio}} en df_mean):")
         for nc in n_cols_present:
             print(f"      {nc:<22}: {df_mean[nc].mean():.1f}")
+
+    return df_tabla_0_imp, df_tabla_1_imp, df_mean, df_median
+
+
+def run_etl_from_excel_bytes(
+    excel_bytes: bytes,
+    verbose: bool = True,
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """
+    Ejecuta el pipeline ETL completo leyendo un Excel local o subido.
+
+    Parámetros
+    ----------
+    excel_bytes : bytes
+        Contenido binario del archivo Excel.
+    verbose : bool
+        Si True, imprime resúmenes de cada etapa.
+
+    Retorna
+    -------
+    Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]
+        (df_tabla_0_imp, df_tabla_1_imp, df_mean, df_median)
+    """
+    if verbose:
+        print("Leyendo datos desde Excel local/subido...")
+
+    xlsx_data = load_excel_from_bytes(excel_bytes)
+
+    cleaned_sheets = clean_sheets(xlsx_data)
+    if verbose:
+        print(f"Hojas cargadas: {len(cleaned_sheets)}")
+
+    type_of_table: Dict[str, int | str] = {
+        name: detect_table_format(sheet)
+        for name, sheet in cleaned_sheets.items()
+    }
+    n_tabla_0 = list(type_of_table.values()).count(0)
+    n_tabla_1 = list(type_of_table.values()).count(1)
+    n_indet = list(type_of_table.values()).count("no determinada")
+    if verbose:
+        print(
+            f"Tabla 0 (escolaridad baja) : {n_tabla_0}\n"
+            f"Tabla 1 (escolaridad alta) : {n_tabla_1}\n"
+            f"No determinadas            : {n_indet}"
+        )
+
+    cleaned_tabla_0 = {
+        name: sheet
+        for name, sheet in cleaned_sheets.items()
+        if type_of_table[name] == 0
+    }
+    cleaned_tabla_1 = {
+        name: sheet
+        for name, sheet in cleaned_sheets.items()
+        if type_of_table[name] == 1
+    }
+
+    df_tabla_0 = search_values(cleaned_tabla_0, FEATURES_TABLA_0, type_of_table)
+    df_tabla_1 = search_values(cleaned_tabla_1, FEATURES_TABLA_1, type_of_table)
+
+    if verbose:
+        print(
+            f"df_tabla_0 crudo : {df_tabla_0.shape}\n"
+            f"df_tabla_1 crudo : {df_tabla_1.shape}"
+        )
+
+    df_tabla_0 = normalize_tabla_0(df_tabla_0)
+    df_tabla_1 = normalize_tabla_1(df_tabla_1)
+
+    if verbose:
+        print("\n Imputando nulos...")
+        print("--- Perfil nulos Tabla 0 ---")
+        perfil_t0 = null_data_info(df_tabla_0, ID_COLS)
+        print(perfil_t0[perfil_t0["nulos"] > 0])
+        print("\n--- Perfil nulos Tabla 1 ---")
+        perfil_t1 = null_data_info(df_tabla_1, ID_COLS)
+        print(perfil_t1[perfil_t1["nulos"] > 0])
+
+    df_tabla_0_imp = imputacion_null(df_tabla_0, ID_COLS)
+    df_tabla_1_imp = imputacion_null(df_tabla_1, ID_COLS)
+
+    if verbose:
+        print(
+            f"\ndf_tabla_0_imp : {df_tabla_0_imp.shape}\n"
+            f"df_tabla_1_imp : {df_tabla_1_imp.shape}"
+        )
+
+    df_mean, df_median = build_df_complete(df_tabla_0_imp, df_tabla_1_imp)
+
+    if verbose:
+        print(f"\ndf_mean   listo: {df_mean.shape}")
+        print(f"df_median listo: {df_median.shape}")
 
     return df_tabla_0_imp, df_tabla_1_imp, df_mean, df_median
 
