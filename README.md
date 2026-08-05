@@ -344,7 +344,7 @@ Los notebooks están organizados por etapa del proyecto CRISP-DM dentro de la ca
 ## Notas
 
 - El pipeline conserva pacientes y evita eliminar filas por nulos.
-- La imputación se hace por grupo clínico `dc` cuando la tasa de nulos lo permite.
-- `df_complete` está pensado para alimentar gráficas, estadística inferencial y modelos de clasificación.
+- La imputación se realiza en el pipeline de cada modelo con los datos disponibles.
+- `df_mean` y `df_median` está pensado para alimentar gráficas, estadística inferencial y modelos de clasificación.
 - Los modelos en `models/` son Pipelines completos y no requieren preprocesamiento externo al usarlos para inferencia.
 - La semilla global `19971711` garantiza la reproducibilidad de todos los experimentos de modelado.
