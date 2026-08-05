@@ -313,7 +313,7 @@ expected_columns = [str(column) for column in getattr(model, "feature_names_in_"
 
 st.sidebar.markdown("### Columnas")
 st.sidebar.caption(
-    "Los modelos utilizan las siguientes variables en este orden. Las columnas faltantes se imputan."
+    "Los modelos utilizan las siguientes variables en este orden. Las columnas faltantes se imputaran automáticamente."
 )
 st.sidebar.write(expected_columns)
 
