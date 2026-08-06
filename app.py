@@ -12,6 +12,42 @@ from src.pipeline import run_etl_from_excel_bytes
 from src.pipeline.config import DC_LABELS
 
 
+def extract_key_hyperparameters(model) -> dict:
+    """Extract key hyperparameters from a fitted sklearn pipeline model."""
+    params = model.get_params()
+    key_params = {}
+    
+    # Extract classifier parameters (prefixed with 'clf__')
+    for key, value in params.items():
+        if key.startswith('clf__'):
+            # Clean up the key name
+            clean_key = key.replace('clf__', '')
+            key_params[clean_key] = value
+    
+    # Extract imputer strategy
+    if 'imputer__strategy' in params:
+        key_params['imputer_strategy'] = params['imputer__strategy']
+    
+    # Extract scaler info if present
+    if 'scaler__with_mean' in params:
+        key_params['scaler'] = 'StandardScaler'
+    
+    return key_params
+
+
+def format_hyperparameters(params: dict) -> dict:
+    """Format hyperparameters for display."""
+    formatted = {}
+    for key, value in params.items():
+        if isinstance(value, float):
+            formatted[key] = f"{value:.4g}"
+        elif isinstance(value, str):
+            formatted[key] = value
+        else:
+            formatted[key] = str(value)
+    return formatted
+
+
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_FILES = {
     "SVM lineal": "modelo_svm_lineal_diagnostico.joblib",
@@ -317,6 +353,16 @@ st.sidebar.caption(
 )
 st.sidebar.write(expected_columns)
 
+# Display model hyperparameters in sidebar
+st.sidebar.markdown("### Hiperparámetros del modelo")
+st.sidebar.caption("Configuración principal del modelo seleccionado.")
+hyperparams = extract_key_hyperparameters(model)
+formatted_params = format_hyperparameters(hyperparams)
+
+# Display as a table using DataFrame
+params_df = pd.DataFrame(list(formatted_params.items()), columns=["Parámetro", "Valor"])
+st.sidebar.dataframe(params_df, width="stretch", hide_index=True)
+
 st.markdown('<div class="card">', unsafe_allow_html=True)
 left, right = st.columns([1.2,0.8])
 
@@ -353,10 +399,15 @@ with left:
         if st.button("Cargar ejemplo en el texto"):
             st.session_state["input_text"] = build_sample_text(expected_columns)
 
+        st.markdown(
+            "<div class='section-copy-dark'>Pega una tabla CSV con encabezados o una sola fila en el orden de las columnas esperadas</div>",
+            unsafe_allow_html=True,
+        )
         raw_text = st.text_area(
-            "Pega una tabla CSV con encabezados o una sola fila en el orden de las columnas esperadas",
+            "",
             key="input_text",
             height=220,
+            label_visibility="collapsed",
         )
         if raw_text.strip():
             try:
