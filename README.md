@@ -273,7 +273,7 @@ La forma más simple de usar el modelo en una interfaz gráfica es con Streamlit
 
 ```bash
 uv sync
-streamlit run app.py
+uv run streamlit run app.py
 ```
 
 ### Ejecutar con Docker
