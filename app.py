@@ -298,8 +298,8 @@ def predict_frame(model, frame: pd.DataFrame) -> pd.DataFrame:
         output["clase_max_prob"] = [classes[index] for index in best_class_indices]
         output["nombre_clase_max_prob"] = output["clase_max_prob"].map(label_name)
         output["probabilidad_maxima"] = best_probabilities
-        output["umbral"] = threshold
-        output["supera_umbral"] = best_probabilities >= threshold
+        # output["umbral"] = threshold
+        # output["supera_umbral"] = best_probabilities >= threshold
         output["confianza"] = best_probabilities
 
     else:
@@ -307,8 +307,8 @@ def predict_frame(model, frame: pd.DataFrame) -> pd.DataFrame:
         output = pd.DataFrame({"prediccion_codigo": predictions})
         output["prediccion_clinica"] = output["prediccion_codigo"].map(label_name)
         output["probabilidad_maxima"] = pd.NA
-        output["umbral"] = threshold
-        output["supera_umbral"] = pd.NA
+        # output["umbral"] = threshold
+        # output["supera_umbral"] = pd.NA
         output["prediccion_modelo"] = predictions
         output["prediccion_modelo_clinica"] = output["prediccion_modelo"].map(label_name)
 
@@ -463,11 +463,10 @@ if source_frame is not None:
         st.markdown('<div class="card">', unsafe_allow_html=True)
         if len(predictions) == 1:
             top_row = predictions.iloc[0]
-            metric_col_1, metric_col_2, metric_col_3, metric_col_4 = st.columns(4)
+            metric_col_1, metric_col_2, metric_col_3 = st.columns(3)
             metric_col_1.metric("Predicción del modelo", top_row["prediccion_modelo_clinica"])
             metric_col_2.metric("Clase de mayor probabilidad", top_row["nombre_clase_max_prob"])
             metric_col_3.metric("Prob. máxima", f"{top_row['probabilidad_maxima']:.2%}" if pd.notna(top_row.get("probabilidad_maxima")) else "N/D")
-            metric_col_4.metric("¿Supera umbral?", "Sí" if bool(top_row.get("supera_umbral")) else "No" if pd.notna(top_row.get("supera_umbral")) else "N/D")
             st.caption(f"<div class='section-copy-dark'>La predicción del modelo y la clase de mayor probabilidad pueden diferir según el clasificador y la separación de clases.</div>", unsafe_allow_html=True)
         st.dataframe(predictions, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
