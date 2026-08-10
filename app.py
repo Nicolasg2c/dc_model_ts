@@ -468,7 +468,7 @@ if source_frame is not None:
             metric_col_2.metric("Clase de mayor probabilidad", top_row["nombre_clase_max_prob"])
             metric_col_3.metric("Prob. máxima", f"{top_row['probabilidad_maxima']:.2%}" if pd.notna(top_row.get("probabilidad_maxima")) else "N/D")
             metric_col_4.metric("¿Supera umbral?", "Sí" if bool(top_row.get("supera_umbral")) else "No" if pd.notna(top_row.get("supera_umbral")) else "N/D")
-            st.caption("La predicción del modelo y la clase de mayor probabilidad pueden diferir según el clasificador y la separación de clases.")
+            st.caption(f"<div class='section-copy-dark'>La predicción del modelo y la clase de mayor probabilidad pueden diferir según el clasificador y la separación de clases.</div>", unsafe_allow_html=True)
         st.dataframe(predictions, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
