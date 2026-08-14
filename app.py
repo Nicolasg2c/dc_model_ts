@@ -12,6 +12,165 @@ from src.pipeline import run_etl_from_excel_bytes
 from src.pipeline.config import DC_LABELS
 
 
+# =============================================================================
+# MODEL CARDS - Información detallada de cada modelo
+# =============================================================================
+MODEL_CARDS = {
+    "Regresión logística": {
+        "name": "Regresión Logística",
+        "algorithm": "LogisticRegression",
+        "model_type": "Probabilístico basado en fronteras (Modelo lineal probabilístico)",
+        "training_date": "23 de julio de 2026",
+        "description": "Clasificador lineal de línea base con regularización L2. Sirve como referencia interpretable y de bajo costo computacional.",
+        "pipeline_steps": ["Imputer (median)", "StandardScaler", "LogisticRegression"],
+        "hyperparameters": {
+            "C": 0.1,
+            "penalty": "l2",
+            "solver": "lbfgs",
+            "class_weight": "balanced",
+            "max_iter": 1000,
+            "random_state": 19971711,
+        },
+        "preprocessing": "Imputación por mediana + Estandarización (StandardScaler)",
+        "task": "Clasificación multiclase: Control (0), DCL (1), Demencia (2)",
+        "validation": "RepeatedStratifiedKFold (5 folds × 20 repeticiones) + Nested CV",
+        "interpretability": "SHAP LinearExplainer",
+        "use_case": "Referencia interpretable, línea de base, inferencia rápida",
+        "limitations": "Asume frontera de decisión lineal, puede subestimar relaciones no lineales",
+        "metrics": {
+            "F1-Macro (CV)": "~0.75-0.80",
+            "Balanced Accuracy (CV)": "~0.75-0.80",
+            "Sensibilidad Control": "~0.75-0.85",
+            "Sensibilidad DCL": "~0.60-0.75",
+            "Sensibilidad Demencia": "~0.70-0.85",
+            "Especificidad Control": "~0.85-0.95",
+            "Especificidad DCL": "~0.80-0.90",
+            "Especificidad Demencia": "~0.85-0.95",
+        },
+    },
+    "Random forest": {
+        "name": "Random Forest",
+        "algorithm": "RandomForestClassifier",
+        "model_type": "Basado en árboles de decisión (Ensemble - Bagging)",
+        "training_date": "23 de julio de 2026",
+        "description": "Conjunto de árboles de decisión con bootstrapping. Captura relaciones no lineales y permite análisis de importancia de variables (SHAP Tree + Permutación).",
+        "pipeline_steps": ["Imputer (median)", "RandomForestClassifier"],
+        "hyperparameters": {
+            "n_estimators": 50,
+            "max_depth": 5,
+            "class_weight": "balanced",
+            "random_state": 19971711,
+            "criterion": "gini",
+            "max_features": "sqrt",
+        },
+        "preprocessing": "Imputación por mediana (sin escalado, los árboles no lo requieren)",
+        "task": "Clasificación multiclase: Control (0), DCL (1), Demencia (2)",
+        "validation": "RepeatedStratifiedKFold (5 folds × 20 repeticiones) + Nested CV",
+        "interpretability": "Importancia por permutación, SHAP TreeExplainer, feature importance nativa",
+        "use_case": "Mejor rendimiento general, captura interacciones no lineales, interpretabilidad SHAP",
+        "limitations": "Menos interpretable que regresión logística, puede overfitear con max_depth alto",
+        "metrics": {
+            "F1-Macro (CV)": "~0.80-0.85",
+            "Balanced Accuracy (CV)": "~0.80-0.85",
+            "Sensibilidad Control": "~0.80-0.90",
+            "Sensibilidad DCL": "~0.65-0.80",
+            "Sensibilidad Demencia": "~0.75-0.90",
+            "Especificidad Control": "~0.85-0.95",
+            "Especificidad DCL": "~0.85-0.95",
+            "Especificidad Demencia": "~0.85-0.95",
+        },
+    },
+    "SVM lineal": {
+        "name": "SVM Lineal",
+        "algorithm": "SVC (kernel=linear)",
+        "model_type": "Basado en fronteras (Máquina de Vectores de Soporte - Kernel Lineal)",
+        "training_date": "23 de julio de 2026",
+        "description": "Máquina de Vectores de Soporte con kernel lineal. Efectivo en espacios de alta dimensión y datasets de tamaño moderado.",
+        "pipeline_steps": ["Imputer (median)", "StandardScaler", "SVC"],
+        "hyperparameters": {
+            "C": 0.1,
+            "kernel": "linear",
+            "class_weight": "balanced",
+            "probability": True,
+            "random_state": 19971711,
+        },
+        "preprocessing": "Imputación por mediana + Estandarización (StandardScaler) - CRÍTICO para SVM",
+        "task": "Clasificación multiclase: Control (0), DCL (1), Demencia (2)",
+        "validation": "RepeatedStratifiedKFold (5 folds × 20 repeticiones) + Nested CV",
+        "interpretability": "Coeficientes del hiperplano (weights), SHAP KernelExplainer",
+        "use_case": "Espacios de alta dimensión, buena generalización, frontera lineal",
+        "limitations": "Requiere escalado, sensible a outliers, kernel lineal limita no linealidad",
+        "metrics": {
+            "F1-Macro (CV)": "~0.78-0.83",
+            "Balanced Accuracy (CV)": "~0.78-0.83",
+            "Sensibilidad Control": "~0.75-0.88",
+            "Sensibilidad DCL": "~0.65-0.80",
+            "Sensibilidad Demencia": "~0.75-0.88",
+            "Especificidad Control": "~0.85-0.95",
+            "Especificidad DCL": "~0.85-0.95",
+            "Especificidad Demencia": "~0.85-0.95",
+        },
+    },
+    "SVM RBF": {
+        "name": "SVM RBF",
+        "algorithm": "SVC (kernel=rbf)",
+        "model_type": "Basado en fronteras (Máquina de Vectores de Soporte - Kernel RBF)",
+        "training_date": "23 de julio de 2026",
+        "description": "Máquina de Vectores de Soporte con kernel radial (RBF). Modela fronteras de decisión no lineales en el espacio de características cognitivas.",
+        "pipeline_steps": ["Imputer (median)", "StandardScaler", "SVC"],
+        "hyperparameters": {
+            "C": 1.0,
+            "kernel": "rbf",
+            "gamma": "auto",
+            "class_weight": "balanced",
+            "probability": True,
+            "random_state": 19971711,
+        },
+        "preprocessing": "Imputación por mediana + Estandarización (StandardScaler) - CRÍTICO para SVM",
+        "task": "Clasificación multiclase: Control (0), DCL (1), Demencia (2)",
+        "validation": "RepeatedStratifiedKFold (5 folds × 20 repeticiones) + Nested CV",
+        "interpretability": "SHAP KernelExplainer (aprox. con background sampling)",
+        "use_case": "Fronteras no lineales complejas, cuando lineal no es suficiente",
+        "limitations": "Más costoso computacionalmente, requiere escalado, menos interpretable, más propenso a overfitting",
+        "metrics": {
+            "F1-Macro (CV)": "~0.78-0.83",
+            "Balanced Accuracy (CV)": "~0.78-0.83",
+            "Sensibilidad Control": "~0.75-0.88",
+            "Sensibilidad DCL": "~0.65-0.80",
+            "Sensibilidad Demencia": "~0.75-0.88",
+            "Especificidad Control": "~0.85-0.95",
+            "Especificidad DCL": "~0.85-0.95",
+            "Especificidad Demencia": "~0.85-0.95",
+        },
+    },
+}
+
+# Información común a todos los modelos
+COMMON_MODEL_INFO = {
+    "dataset": "Datos neuropsicológicos de adultos mayores en Colombia (Caldas)",
+    "features": 18,
+    "feature_names": [
+        "nivel_estudio", "age_num",
+        "n_orientacion", "orientacion",
+        "n_atencion", "atencion",
+        "n_lenguaje", "lenguaje",
+        "n_memoria_verbal", "memoria_verbal",
+        "n_memoria_visual", "memoria_visual",
+        "n_gnosias", "gnosias",
+        "n_praxis", "praxis",
+        "n_ejecutivas", "ejecutivas"
+    ],
+    "target": "dc (0=Control, 1=DCL, 2=Demencia)",
+    "aggregation_strategies": "Media y Mediana para dominios cognitivos",
+    "cv_strategy": "RepeatedStratifiedKFold (n_splits=5, n_repeats=20, random_state=19971711)",
+    "scoring": "F1-Macro, Balanced Accuracy, Sensibilidad/Especificidad por clase",
+    "methodology": "CRISP-DM",
+    "seed": 19971711,
+    "imputation": "Mediana en pipeline del modelo",
+    "class_balance": "class_weight='balanced' en todos los clasificadores",
+}
+
+
 def extract_key_hyperparameters(model) -> dict:
     """Extract key hyperparameters from a fitted sklearn pipeline model."""
     params = model.get_params()
@@ -47,6 +206,79 @@ def format_hyperparameters(params: dict) -> dict:
             formatted[key] = str(value)
     return formatted
 
+
+def render_model_card(model_name: str, show_in_sidebar: bool = False):
+    """Render a model card with detailed information."""
+    card = MODEL_CARDS.get(model_name)
+    if not card:
+        st.warning(f"No hay información disponible para el modelo: {model_name}")
+        return
+    
+    container = st.sidebar if show_in_sidebar else st
+    
+    with container.expander(f"Model Card: {card['name']}", expanded=not show_in_sidebar):
+        # Tipo de modelo
+        st.markdown(f"**Tipo de modelo:** {card.get('model_type', 'N/A')}")
+        
+        # Fecha de entrenamiento
+        st.markdown(f"**Fecha de entrenamiento:** {card.get('training_date', 'N/A')}")
+        
+        # Descripción
+        st.markdown(f"**Descripción:** {card['description']}")
+        
+        # Pipeline steps
+        st.markdown("**Pipeline:**")
+        for step in card['pipeline_steps']:
+            st.markdown(f"- {step}")
+        
+        # Hiperparámetros
+        st.markdown("**Hiperparámetros:**")
+        hp_df = pd.DataFrame(list(card['hyperparameters'].items()), columns=["Parámetro", "Valor"])
+        st.dataframe(hp_df, hide_index=True, width="stretch")
+        
+        # Preprocesamiento
+        st.markdown(f"**Preprocesamiento:** {card['preprocessing']}")
+        
+        # Tarea
+        st.markdown(f"**Tarea:** {card['task']}")
+        
+        # Validación
+        st.markdown(f"**Validación:** {card['validation']}")
+        
+        # Interpretabilidad
+        st.markdown(f"**Interpretabilidad:** {card['interpretability']}")
+        
+        # Caso de uso
+        st.markdown(f"**Caso de uso:** {card['use_case']}")
+        
+        # Limitaciones
+        st.markdown(f"**Limitaciones:** {card['limitations']}")
+        
+        # Métricas
+        st.markdown("**Métricas de validación cruzada (estimadas):**")
+        metrics_df = pd.DataFrame(list(card['metrics'].items()), columns=["Métrica", "Valor"])
+        st.dataframe(metrics_df, hide_index=True, width="stretch")
+
+
+def render_common_info(show_in_sidebar: bool = False):
+    """Render common information shared by all models."""
+    container = st.sidebar if show_in_sidebar else st
+    
+    with container.expander("Información común del proyecto", expanded=not show_in_sidebar):
+        st.markdown(f"**Dataset:** {COMMON_MODEL_INFO['dataset']}")
+        st.markdown(f"**Número de features:** {COMMON_MODEL_INFO['features']}")
+        st.markdown(f"**Variable objetivo:** {COMMON_MODEL_INFO['target']}")
+        st.markdown(f"**Estrategias de agregación:** {COMMON_MODEL_INFO['aggregation_strategies']}")
+        st.markdown(f"**Estrategia CV:** {COMMON_MODEL_INFO['cv_strategy']}")
+        st.markdown(f"**Métricas:** {COMMON_MODEL_INFO['scoring']}")
+        st.markdown(f"**Metodología:** {COMMON_MODEL_INFO['methodology']}")
+        st.markdown(f"**Semilla global:** {COMMON_MODEL_INFO['seed']}")
+        st.markdown(f"**Imputación:** {COMMON_MODEL_INFO['imputation']}")
+        st.markdown(f"**Balanceo de clases:** {COMMON_MODEL_INFO['class_balance']}")
+        
+        st.markdown("**Features (18):**")
+        features_df = pd.DataFrame({"Feature": COMMON_MODEL_INFO['feature_names']})
+        st.dataframe(features_df, hide_index=True, width="stretch")
 
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_FILES = {
@@ -353,15 +585,22 @@ st.sidebar.caption(
 )
 st.sidebar.write(expected_columns)
 
-# Display model hyperparameters in sidebar
-st.sidebar.markdown("### Hiperparámetros del modelo")
-st.sidebar.caption("Configuración principal del modelo seleccionado.")
-hyperparams = extract_key_hyperparameters(model)
-formatted_params = format_hyperparameters(hyperparams)
+# # Display model hyperparameters in sidebar
+# st.sidebar.markdown("### Hiperparámetros del modelo")
+# st.sidebar.caption("Configuración principal del modelo seleccionado.")
+# hyperparams = extract_key_hyperparameters(model)
+# formatted_params = format_hyperparameters(hyperparams)
 
-# Display as a table using DataFrame
-params_df = pd.DataFrame(list(formatted_params.items()), columns=["Parámetro", "Valor"])
-st.sidebar.dataframe(params_df, width="stretch", hide_index=True)
+# # Display as a table using DataFrame
+# params_df = pd.DataFrame(list(formatted_params.items()), columns=["Parámetro", "Valor"])
+# st.sidebar.dataframe(params_df, width="stretch", hide_index=True)
+
+# Model Card in sidebar
+st.sidebar.markdown("---")
+render_model_card(selected_model_name, show_in_sidebar=True)
+
+# Common info in sidebar
+render_common_info(show_in_sidebar=True)
 
 st.markdown('<div class="card">', unsafe_allow_html=True)
 left, right = st.columns([1.2,0.8])
