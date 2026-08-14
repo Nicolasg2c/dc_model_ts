@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import base64
+import math
 from io import StringIO
 from pathlib import Path
 
 import joblib
+import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -66,7 +68,7 @@ MODEL_CARDS = {
         "preprocessing": "Imputación por mediana (sin escalado, los árboles no lo requieren)",
         "task": "Clasificación multiclase: Control (0), DCL (1), Demencia (2)",
         "validation": "RepeatedStratifiedKFold (5 folds × 20 repeticiones) + Nested CV",
-        "interpretability": "Importancia por permutación, SHAP TreeExplainer, feature importance nativa",
+        "interpretability": "SHAP TreeExplainer",
         "use_case": "Mejor rendimiento general, captura interacciones no lineales, interpretabilidad SHAP",
         "limitations": "Menos interpretable que regresión logística, puede overfitear con max_depth alto",
         "metrics": {
@@ -97,7 +99,7 @@ MODEL_CARDS = {
         "preprocessing": "Imputación por mediana + Estandarización (StandardScaler) - CRÍTICO para SVM",
         "task": "Clasificación multiclase: Control (0), DCL (1), Demencia (2)",
         "validation": "RepeatedStratifiedKFold (5 folds × 20 repeticiones) + Nested CV",
-        "interpretability": "Coeficientes del hiperplano (weights), SHAP KernelExplainer",
+        "interpretability": "SHAP KernelExplainer",
         "use_case": "Espacios de alta dimensión, buena generalización, frontera lineal",
         "limitations": "Requiere escalado, sensible a outliers, kernel lineal limita no linealidad",
         "metrics": {
@@ -258,27 +260,6 @@ def render_model_card(model_name: str, show_in_sidebar: bool = False):
         st.markdown("**Métricas de validación cruzada (estimadas):**")
         metrics_df = pd.DataFrame(list(card['metrics'].items()), columns=["Métrica", "Valor"])
         st.dataframe(metrics_df, hide_index=True, width="stretch")
-
-
-def render_common_info(show_in_sidebar: bool = False):
-    """Render common information shared by all models."""
-    container = st.sidebar if show_in_sidebar else st
-    
-    with container.expander("Información común del proyecto", expanded=not show_in_sidebar):
-        st.markdown(f"**Dataset:** {COMMON_MODEL_INFO['dataset']}")
-        st.markdown(f"**Número de features:** {COMMON_MODEL_INFO['features']}")
-        st.markdown(f"**Variable objetivo:** {COMMON_MODEL_INFO['target']}")
-        st.markdown(f"**Estrategias de agregación:** {COMMON_MODEL_INFO['aggregation_strategies']}")
-        st.markdown(f"**Estrategia CV:** {COMMON_MODEL_INFO['cv_strategy']}")
-        st.markdown(f"**Métricas:** {COMMON_MODEL_INFO['scoring']}")
-        st.markdown(f"**Metodología:** {COMMON_MODEL_INFO['methodology']}")
-        st.markdown(f"**Semilla global:** {COMMON_MODEL_INFO['seed']}")
-        st.markdown(f"**Imputación:** {COMMON_MODEL_INFO['imputation']}")
-        st.markdown(f"**Balanceo de clases:** {COMMON_MODEL_INFO['class_balance']}")
-        
-        st.markdown("**Features (18):**")
-        features_df = pd.DataFrame({"Feature": COMMON_MODEL_INFO['feature_names']})
-        st.dataframe(features_df, hide_index=True, width="stretch")
 
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_FILES = {
@@ -512,15 +493,66 @@ def extract_from_excel(uploaded_file) -> tuple[pd.DataFrame, pd.DataFrame]:
     return df_mean, df_median
 
 
+def _wilson_ci(p: float, n: int, z: float = 1.96) -> tuple[float, float]:
+    """Intervalo de confianza de Wilson para una proporción.
+
+    Args:
+        p: Estimación puntual de la probabilidad (0-1).
+        n: Tamaño de muestra efectivo.
+        z: Cuantil normal (1.96 → IC 95 %).
+
+    Returns:
+        (lower, upper) acotados a [0, 1].
+    """
+    if n <= 0:
+        return (0.0, 1.0)
+    denom = 1 + z ** 2 / n
+    centre = (p + z ** 2 / (2 * n)) / denom
+    margin = (z / denom) * math.sqrt(p * (1 - p) / n + z ** 2 / (4 * n ** 2))
+    lower = max(0.0, centre - margin)
+    upper = min(1.0, centre + margin)
+    return (lower, upper)
+
+
+def _get_n_effective(model) -> int:
+    """Infiere el tamaño de muestra efectivo para el IC de Wilson.
+
+    - RandomForest: usa n_estimators (cada árbol es un 'voto').
+    - SVM / LR con Platt scaling: usa el producto folds × repeats de la
+      validación cruzada interna (RepeatedStratifiedKFold 5×20 = 100).
+    """
+    # Busca el clasificador final en el pipeline
+    clf = model
+    if hasattr(model, "named_steps"):
+        clf = model.named_steps.get("clf", list(model.named_steps.values())[-1])
+
+    clf_class = type(clf).__name__
+    if clf_class == "RandomForestClassifier":
+        return int(getattr(clf, "n_estimators", 100))
+
+    # SVC con Platt scaling usa CV interna de 5 folds por defecto;
+    # la validación externa es 5×20 = 100 pliegues → conservador
+    return 100
+
+
 def predict_frame(model, frame: pd.DataFrame) -> pd.DataFrame:
     output = pd.DataFrame()
-    threshold = 0.5
 
     if hasattr(model, "predict_proba"):
         probabilities = model.predict_proba(frame)
         classes = list(model.classes_)
+        n_eff = _get_n_effective(model)
+
+        # Probabilidades por clase + IC de Wilson 95 %
         for index, class_code in enumerate(classes):
-            output[f"prob_{label_name(class_code)}"] = probabilities[:, index]
+            col_prob = f"prob_{label_name(class_code)}"
+            col_lo = f"ic_inf_{label_name(class_code)}"
+            col_hi = f"ic_sup_{label_name(class_code)}"
+            probs_col = probabilities[:, index]
+            output[col_prob] = probs_col
+            cis = np.array([_wilson_ci(float(p), n_eff) for p in probs_col])
+            output[col_lo] = cis[:, 0]
+            output[col_hi] = cis[:, 1]
 
         best_class_indices = probabilities.argmax(axis=1)
         best_probabilities = probabilities.max(axis=1)
@@ -530,19 +562,24 @@ def predict_frame(model, frame: pd.DataFrame) -> pd.DataFrame:
         output["clase_max_prob"] = [classes[index] for index in best_class_indices]
         output["nombre_clase_max_prob"] = output["clase_max_prob"].map(label_name)
         output["probabilidad_maxima"] = best_probabilities
-        # output["umbral"] = threshold
-        # output["supera_umbral"] = best_probabilities >= threshold
         output["confianza"] = best_probabilities
+
+        # IC de Wilson para la clase de mayor probabilidad
+        best_cis = np.array([_wilson_ci(float(p), n_eff) for p in best_probabilities])
+        output["ic_inferior_95"] = best_cis[:, 0]
+        output["ic_superior_95"] = best_cis[:, 1]
+        output["n_efectivo"] = n_eff
 
     else:
         predictions = model.predict(frame)
         output = pd.DataFrame({"prediccion_codigo": predictions})
         output["prediccion_clinica"] = output["prediccion_codigo"].map(label_name)
         output["probabilidad_maxima"] = pd.NA
-        # output["umbral"] = threshold
-        # output["supera_umbral"] = pd.NA
         output["prediccion_modelo"] = predictions
         output["prediccion_modelo_clinica"] = output["prediccion_modelo"].map(label_name)
+        output["ic_inferior_95"] = pd.NA
+        output["ic_superior_95"] = pd.NA
+        output["n_efectivo"] = pd.NA
 
     return output
 
@@ -598,9 +635,6 @@ st.sidebar.write(expected_columns)
 # Model Card in sidebar
 st.sidebar.markdown("---")
 render_model_card(selected_model_name, show_in_sidebar=True)
-
-# Common info in sidebar
-render_common_info(show_in_sidebar=True)
 
 st.markdown('<div class="card">', unsafe_allow_html=True)
 left, right = st.columns([1.2,0.8])
@@ -702,11 +736,16 @@ if source_frame is not None:
         st.markdown('<div class="card">', unsafe_allow_html=True)
         if len(predictions) == 1:
             top_row = predictions.iloc[0]
-            metric_col_1, metric_col_2, metric_col_3 = st.columns(3)
+            metric_col_1, metric_col_2, metric_col_3, metric_col_4 = st.columns(4)
             metric_col_1.metric("Predicción del modelo", top_row["prediccion_modelo_clinica"])
             metric_col_2.metric("Clase de mayor probabilidad", top_row["nombre_clase_max_prob"])
             metric_col_3.metric("Prob. máxima", f"{top_row['probabilidad_maxima']:.2%}" if pd.notna(top_row.get("probabilidad_maxima")) else "N/D")
-            st.caption(f"<div class='section-copy-dark'>La predicción del modelo y la clase de mayor probabilidad pueden diferir según el clasificador y la separación de clases.</div>", unsafe_allow_html=True)
+            if pd.notna(top_row.get("ic_inferior_95")) and pd.notna(top_row.get("ic_superior_95")):
+                ic_str = f"{top_row['ic_inferior_95']:.2%} – {top_row['ic_superior_95']:.2%}"
+                metric_col_4.metric("IC 95 % (clase ganadora)", ic_str)
+            else:
+                metric_col_4.metric("IC 95 % (clase ganadora)", "N/D")
+            st.caption(f"<div class='section-copy-dark'>La predicción del modelo y la clase de mayor probabilidad pueden diferir según el clasificador y la separación de clases. IC calculado con el método de Wilson (n efectivo = {int(top_row.get('n_efectivo', 0)) if pd.notna(top_row.get('n_efectivo')) else 'N/D'}).</div>", unsafe_allow_html=True)
         st.dataframe(predictions, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -725,6 +764,27 @@ if source_frame is not None:
                 "Selecciona una fila para ver probabilidades",
                 list(range(len(predictions))),
             )
+            row = predictions.loc[selected_index]
+
+            # Tabla de probabilidades + IC de Wilson por clase
+            ci_rows = []
+            for col in probability_columns:
+                clase = col.replace("prob_", "")
+                prob = row[col]
+                lo = row.get(f"ic_inf_{clase}", None)
+                hi = row.get(f"ic_sup_{clase}", None)
+                ci_rows.append({
+                    "Clase": clase,
+                    "Probabilidad": f"{prob:.2%}",
+                    "IC 95% inferior": f"{lo:.2%}" if pd.notna(lo) else "N/D",
+                    "IC 95% superior": f"{hi:.2%}" if pd.notna(hi) else "N/D",
+                    "Amplitud IC": f"{(hi - lo):.2%}" if pd.notna(lo) and pd.notna(hi) else "N/D",
+                })
+            ci_df = pd.DataFrame(ci_rows)
+            st.markdown('<div class="section-title-dark">Probabilidades e intervalos de confianza 95 % por clase:</div>', unsafe_allow_html=True)
+            st.dataframe(ci_df, hide_index=True, use_container_width=True)
+
+            # Gráfico de barras de probabilidades
             probability_view = predictions.loc[[selected_index], probability_columns].T
             probability_view.columns = ["probabilidad"]
             st.bar_chart(probability_view, use_container_width=True)
