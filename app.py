@@ -746,16 +746,16 @@ if source_frame is not None:
             else:
                 metric_col_4.metric("IC 95 % (clase ganadora)", "N/D")
             st.caption(f"<div class='section-copy-dark'>La predicción del modelo y la clase de mayor probabilidad pueden diferir según el clasificador y la separación de clases. IC calculado con el método de Wilson (n efectivo = {int(top_row.get('n_efectivo', 0)) if pd.notna(top_row.get('n_efectivo')) else 'N/D'}).</div>", unsafe_allow_html=True)
-        st.dataframe(predictions, use_container_width=True)
+        # st.dataframe(predictions, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
         csv_bytes = predictions.to_csv(index=False).encode("utf-8")
-        st.download_button(
-            "Descargar resultados CSV",
-            data=csv_bytes,
-            file_name=f"predicciones_{selected_model_name.lower().replace(' ', '_')}.csv",
-            mime="text/csv",
-        )
+        # st.download_button(
+        #     "Descargar resultados CSV",
+        #     data=csv_bytes,
+        #     file_name=f"predicciones_{selected_model_name.lower().replace(' ', '_')}.csv",
+        #     mime="text/csv",
+        # )
 
         probability_columns = [column for column in predictions.columns if column.startswith("prob_")]
         if probability_columns:
